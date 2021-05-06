@@ -339,6 +339,9 @@
             CC  = TEN_DDOT_3424(CC, CCb, nsd)
             CC  = TEN_DDOT_2412(CCb, CC, nsd)
          END IF
+      
+      CASE (stGR_equi)
+            CALL stress_2pk(Fe, J)
 
       CASE DEFAULT
          err = "Undefined material constitutive model"

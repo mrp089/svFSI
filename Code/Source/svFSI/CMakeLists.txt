@@ -165,6 +165,8 @@ set(CSRCS SPLIT.c
 
 set(CXXSRCS remeshTet.cpp)
 
+set(CXXSRCS ${CXXSRCS} FEMbeCmm.cpp)
+
 
 if(WITH_TRILINOS)
   set(CXXSRCS ${CXXSRCS} trilinos_linear_solver.cpp)

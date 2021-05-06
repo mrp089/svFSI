@@ -2472,6 +2472,9 @@ c     2         "can be applied for Neumann boundaries only"
          lPtr => lSt%get(lDmn%stM%bss, "b4s")
          lPtr => lSt%get(lDmn%stM%afs, "afs")
          lPtr => lSt%get(lDmn%stM%bfs, "bfs")
+      
+      CASE ("GR_Equilibrated")
+         lDmn%stM%isoType = stGR_equi
 
       CASE DEFAULT
          err = "Undefined constitutive model used"
