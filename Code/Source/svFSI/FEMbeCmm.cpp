@@ -15,16 +15,9 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <bits/stdc++.h>
+//#include <bits/stdc++.h>
 #include <limits.h>
-
-extern"C"
-{
-  void print_c_()
-  {
-	  std::cout<<"wtf C+++"<<std::endl;
-  }
-}
+#include <mat3d.h>
 
 extern"C"
 {
@@ -62,6 +55,8 @@ extern"C"
 	  double EPS  = 1.0;                                                  // blood flow rate ratio
 
 	  double eta = 1.0;                                                   // smc/collagen turnover ratio
+
+	  mat3ds U;
   }
 }
 

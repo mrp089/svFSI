@@ -74,3 +74,6 @@ if(SV_USE_MPI)
     set(SV_MPI_Fortran_LIBRARIES lib_fortran_simvascular_dummympi)
   endif()
 endif()
+
+set(SV_FEBIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/febio/")
+include_directories(${SV_FEBIO_DIR})
