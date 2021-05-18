@@ -23,8 +23,11 @@ extern"C"
 {
   void stress_2pk_(const double* Fe, const double J)
   {
+	  // convert deformation gradient to FEBio format
+	  mat3d F(Fe[0], Fe[1], Fe[2], Fe[3], Fe[4], Fe[5], Fe[6], Fe[7], Fe[8]);
+
 	  for (int i=0; i<9; ++i)
-		  std::cout<<i<<" "<<Fe[i]<<" "<<std::endl;
+		  std::cout<<F.det()<<" "<<J<<std::endl;
 	  
 	  double eps = std::numeric_limits<double>::epsilon();                // machine epsilon (for floating point arithmetic)
 	  
@@ -56,7 +59,11 @@ extern"C"
 
 	  double eta = 1.0;                                                   // smc/collagen turnover ratio
 
+
+	  // compute U from polar decomposition of deformation gradient tensor
 	  mat3ds U;
+	  mat3d R;
+	  F.right_polar(R,U);
   }
 }
 
