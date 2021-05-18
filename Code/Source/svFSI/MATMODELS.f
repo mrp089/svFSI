@@ -341,7 +341,7 @@
          END IF
       
       CASE (stGR_equi)
-            CALL stress_2pk(Fe, J)
+            CALL stress_2pk(F, fl, S, CC)
 
       CASE DEFAULT
          err = "Undefined material constitutive model"

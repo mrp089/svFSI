@@ -167,6 +167,10 @@ set(CXXSRCS remeshTet.cpp)
 
 set(CXXSRCS ${CXXSRCS} FEMbeCmm.cpp)
 
+set(SV_FEBIO_DIR "${SV_SOURCE_DIR}/ThirdParty/febio/")
+set(CXXSRCS ${CXXSRCS} ${SV_FEBIO_DIR}/eig3.cpp)
+set(CXXSRCS ${CXXSRCS} ${SV_FEBIO_DIR}/mat3d.cpp)
+set(CXXSRCS ${CXXSRCS} ${SV_FEBIO_DIR}/stdafx.cpp)
 
 if(WITH_TRILINOS)
   set(CXXSRCS ${CXXSRCS} trilinos_linear_solver.cpp)
