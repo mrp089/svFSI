@@ -227,7 +227,7 @@ extern"C"
 
 ////-----------------------------------------------------------------------------
 //// This function needs to return the spatial (i.e. Cauchy stress) at the material point
-//// which is passed as a parameter. The FEMaterialPoint class contains all the state 
+//// which is passed as a parameter. The FEMaterialPoint class contains all the state
 //// variables of the material (and its base classes).
 //mat3ds FEMbeCmm::Stress(FEMaterialPoint& mp)
 //{
@@ -296,7 +296,7 @@ extern"C"
 //    // right Cauchy-Green tensor and its inverse
 //    mat3ds C = pt.RightCauchyGreen();
 //    mat3ds Ci = C.inverse();
-//    
+//
 //    // stress for elastin
 //    mat3ds Se = phieo*ce*Ge*Ge;                                         // phieo*Ge*Sehat*Ge = phieo*Ge*(ce*I)*Ge
 //
@@ -309,12 +309,12 @@ extern"C"
 //
 //        double Jdep = 0.9999;                                           // "deposition volume ratio"
 //        double lm = 1.0e3*ce;                                           // bulk modulus for volumetric penalty (nearly incompressibility)
-//        
+//
 //        double lt = (F*N[1]).norm();                                    // circumferential stretch (from reference configuration)
 //        double lz = (F*N[2]).norm();                                    // axial
 //        double lp = (F*Np).norm();                                      // diagonal 1
 //        double ln = (F*Nn).norm();                                      // diagonal 2
-//        
+//
 //        double lmt2 = (Gm*lt)*(Gm*lt);                                  // smc circumferential stretch squared
 //        double lct2 = (Gc*lt)*(Gc*lt);                                  // circumferential collagen stretch squared
 //        double lcz2 = (Gc*lz)*(Gc*lz);                                  //      axial      collagen stretch squared
@@ -322,17 +322,17 @@ extern"C"
 //        double lcn2 = (Gc*ln)*(Gc*ln);                                  //    diagonal 2   collagen stretch squared
 //
 //        // second Piola-Kirchhoff stress
-//        
+//
 //        mat3ds Sm = phimo * (cm*(lmt2-1.0)*exp(dm*(lmt2-1.0)*(lmt2-1.0))*(Gm*Gm)*dyad(N[1]));           // smc
 //        mat3ds Sc = phico * (cc*(lct2-1.0)*exp(dc*(lct2-1.0)*(lct2-1.0))*(Gc*Gc)*dyad(N[1])*betat +
 //                             cc*(lcz2-1.0)*exp(dc*(lcz2-1.0)*(lcz2-1.0))*(Gc*Gc)*dyad(N[2])*betaz +
 //                             cc*(lcp2-1.0)*exp(dc*(lcp2-1.0)*(lcp2-1.0))*(Gc*Gc)*dyad( Np )*betad +
 //                             cc*(lcn2-1.0)*exp(dc*(lcn2-1.0)*(lcn2-1.0))*(Gc*Gc)*dyad( Nn )*betad );    // collagen
-//        
+//
 //        mat3ds Sx = Se + Sm + Sc;                                       // elastin + smc + collagen + ...
-//        
+//
 //        S = Sx + Ci*lm*log(Jdep*J);                                     // ... + volumetric (penalty) contribution
-//        
+//
 //        // store initial Jacobian, vol. stress, smc rotated stress, collagen rotated stress, inverse of Fo, collagen mass fraction
 //
 //        pt.m_Jo   = J;
@@ -357,7 +357,7 @@ extern"C"
 //        double &phic = pt.m_phic;                                        // stored in material point memory for tangent computation phase
 //
 //        // solve nonlinear residual equation resulting from <SUM(phi)=1> and <J*phim/phimo=(J*phic/phico)^eta>: Rphi = phieo + phimo*pow(J/Jo*phic/phico,eta) + J/Jo*phic - J/Jo = 0
-//        
+//
 //        phic = phico;                                                            // initial guess
 //        double dRdc = J/Jo*(1.0+phimo/phico*eta*pow(J/Jo*phic/phico,eta-1.0));   // initial tangent d(R)/d(phic)
 //        double Rphi = phieo+phimo*pow(J/Jo*phic/phico,eta)+J/Jo*phic-J/Jo;       // initial residue
@@ -374,7 +374,7 @@ extern"C"
 //        double lt = (F*(Fio*N[1])).norm();                               // lt -> 1 for F -> Fo
 //
 //        // COMPUTE CAUCHY STRESS
-//        
+//
 //        double rIo = 0.6468;                                             // initial inner radius (TBD: read it from input file...)
 //        double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;                        // relative change in radius: rIrIo -> rIorIo = 1 for F -> Fo
 //
@@ -386,11 +386,11 @@ extern"C"
 //        mat3ds Ui = U.inverse();                                         // inverse of U
 //
 //        mat3ds Sf = J*(Ui*sNf*Ui);                                       // J*Ui*sNf*Ui
-//        
+//
 //        mat3ds Sx = Se+Sf;                                               // elastin + smc + collagen + ...
 //
 //        double p = 1.0/3.0/J*Sx.dotdot(C) - svo*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0));     // Ups = 1 -> p (evolving Lagrange multiplier)
-//        
+//
 //        S = Sx - J*p*Ci;                                                 // ... + mechanobiologically equilibrated contribution from p
 //    }
 //
@@ -401,7 +401,7 @@ extern"C"
 //}
 //
 ////-----------------------------------------------------------------------------
-//// This function calculates the spatial tangent tensor. 
+//// This function calculates the spatial tangent tensor.
 //// It takes one parameter, the FEMaterialPoint and returns a tens4ds object
 //// which is a fourth-order tensor with minor symmetries only.
 //tens4dss FEMbeCmm::Tangent(FEMaterialPoint& mp)
@@ -487,12 +487,12 @@ extern"C"
 //
 //        double Jdep = 0.9999;                                           // "deposition volume ratio"
 //        double lm = 1.0e3*ce;                                           // bulk modulus for volumetric penalty (nearly incompressibility)
-//        
+//
 //        double lt = (F*N[1]).norm();                                    // circumferential stretch (from reference configuration)
 //        double lz = (F*N[2]).norm();                                    // axial
 //        double lp = (F*Np).norm();                                      // diagonal 1
 //        double ln = (F*Nn).norm();                                      // diagonal 2
-//        
+//
 //        double lmt2 = (Gm*lt)*(Gm*lt);                                  // smc circumferential stretch squared
 //        double lct2 = (Gc*lt)*(Gc*lt);                                  // circumferential collagen stretch squared
 //        double lcz2 = (Gc*lz)*(Gc*lz);                                  //      axial      collagen stretch squared
@@ -538,7 +538,7 @@ extern"C"
 //        mat3ds U; mat3d R; F.right_polar(R,U);
 //
 //        U.eigen2(eigenval,eigenvec);
-//        mat3ds Ui = U.inverse(); 
+//        mat3ds Ui = U.inverse();
 //
 //        // compute current rotated stresses
 //        mat3ds sNm = phim/phimo*smo;                                    // phim*smhato = phim*(smo/phimo) = (phim/phimo)*smo
@@ -568,10 +568,10 @@ extern"C"
 //        tens4ds Ixsx = dyad1s(I,sx);
 //        tens4ds smxI = dyad1s(sm,I);
 //        tens4ds scxI = dyad1s(sc,I);
-//        
-//        mat3ds tenr = dyad(F*(Fio*N[0]));                               // Fio needed for numerical consistency (from computation of lr) 
+//
+//        mat3ds tenr = dyad(F*(Fio*N[0]));                               // Fio needed for numerical consistency (from computation of lr)
 //        mat3ds tent = dyad(F*(Fio*N[1]));
-//        
+//
 //        tens4ds Ixnrr = dyad1s(I,tenr);
 //        tens4ds Ixntt = dyad1s(I,tent);
 //
@@ -624,7 +624,7 @@ extern"C"
 //
 //        // additional contributions to tangent by smc and collagen
 //
-//        // derivatives of referential mass fractions with 
+//        // derivatives of referential mass fractions with
 //        double dphiRm = phimo*eta*pow(J/Jo*phic/phico,eta-1.0)/(phimo*eta*pow(J/Jo*phic/phico,eta-1.0)+phico);
 //        double dphiRc = phico/(phimo*eta*pow(J/Jo*phic/phico,eta-1.0)+phico);
 //
@@ -633,7 +633,7 @@ extern"C"
 //        // total tangent
 //
 //        c = ce + cf;                                                    // elastin + smc + collagen + ...
-//        
+//
 //        c += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddotss(IxIss,css))
 //           + svo*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss)
 //           - 3.0*svo*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);    // ... + mechanobiologically equilibrated contribution from p
