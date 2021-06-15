@@ -362,7 +362,7 @@
          END IF
       
       CASE (stGR_equi)
-            CALL stress_2pk(F, fl, S, CC)
+            CALL stress_tangent(F, fl, S, CC)
 
       CASE DEFAULT
          err = "Undefined material constitutive model"
