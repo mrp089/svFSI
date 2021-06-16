@@ -20,7 +20,7 @@
 // variables of the material (and its base classes).
 extern"C"
 {
-void stress_tangent_(const double* Fe, const double* fl, double* S_out, double* CC_out)
+void stress_tangent_(const double* Fe, const double* fl, const double* xgp, const double* time, double* S_out, double* CC_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[1], Fe[2], Fe[3], Fe[4], Fe[5], Fe[6], Fe[7], Fe[8]);
@@ -33,33 +33,21 @@ void stress_tangent_(const double* Fe, const double* fl, double* S_out, double* 
 	// determinant of the deformation gradient
 	const double J = F.det();
 
-//	// The FEMaterialPoint classes are stored in a linked list. The specific material
-//	// point data needed by this function can be accessed using the ExtractData member.
-//	// In this case, we want to FEElasticMaterialPoint data since it stores the deformation
-//	// information that is needed to evaluate the stress.
-//	FEElasticMaterialPoint& pt = *mp.ExtractData<FEElasticMaterialPoint>();
-//
-//	// We'll need the deformation gradient and its determinant in this function.
-//	// Note that we don't take the determinant of F directly (using mat3d::det)
-//	// but instead use the m_J member variable of FEElasticMaterialPoint.
-//	mat3d &F = pt.m_F;
-//	double J = pt.m_J;
-
-	double eps = std::numeric_limits<double>::epsilon();
+	// retrieve material position
+	vec3d  X = {xgp[0], xgp[1], xgp[2]};
 
 	// get current and end times
 //	double t = GetFEModel()->GetTime().currentTime;
 //	double endtime = GetFEModel()->GetCurrentStep()->m_tend;
-	double t = 0.0;
-	double endtime;
+	const double t = *time;
+	const double endtime = 11.0;							// 11.0 | 31.0-32.0 (TEVG)
 
-	endtime = 11.0;							// 11.0 | 31.0-32.0 (TEVG)
+//	std::cout<<"time "<<*time<<std::endl;
+//	std::cout<<"xgp "<<xgp[0]<<" "<<xgp[1]<<" "<<xgp[2]<<std::endl;
+
+	double eps = std::numeric_limits<double>::epsilon();
 	double partialtime = endtime;			// partialtime <= endtime | 10.0 | 10.4 (for TI calculation)
 	double sgr = std::min(t,partialtime);		// min(t,partialtime) | min(t,9.0)
-
-	// retrieve material position
-//	vec3d  X = pt.m_r0;
-	vec3d  X;
 
 	double imper = 0.00;					// imper > 0 for TORTUOSITY (see Matlab script <NodesElementsAsy.m>) | 0.00 | 20.0
 	double rIo = 0.6468;					// 0.6468 | 0.5678
@@ -225,7 +213,9 @@ void stress_tangent_(const double* Fe, const double* fl, double* S_out, double* 
 
 		css = tens4dss(c);		// c in tens4dss form
 	}
-	else if (t <= partialtime + eps) {
+
+	// mrp089: execute steps I and II at t=1.0 since we can't store class variables here
+	if (t >= 1.0 - eps && t <= partialtime + eps) {
 
 		phic = phico;																// initial guess
 		double dRdc = J/Jo*(1.0+phimo/phico*eta*pow(J/Jo*phic/phico,eta-1.0));		// initial tangent d(R)/d(phic)
@@ -434,24 +424,18 @@ void stress_tangent_(const double* Fe, const double* fl, double* S_out, double* 
 
 	}
 
-//	mat3ds s = 1.0/J*((F*(S*F.transpose()))).sym();
-
-//	pt.m_Iemax = s.dotdot(dyad(F*N[1]))/(F*N[1]).norm2();			// circumferential stress, just for plotting, temporary
-
-	// The Cauchy stress is returned
-//	return s;
-
 	// convert to vector for FORTRAN
-	S_out[0] = S.xx();
-	S_out[1] = S.xy();
-	S_out[2] = S.xz();
-	S_out[3] = S.xy();
-	S_out[4] = S.yy();
-	S_out[5] = S.yz();
-	S_out[6] = S.xz();
-	S_out[7] = S.yz();
-	S_out[8] = S.zz();
+	S_out[0] += S.xx();
+	S_out[1] += S.xy();
+	S_out[2] += S.xz();
+	S_out[3] += S.xy();
+	S_out[4] += S.yy();
+	S_out[5] += S.yz();
+	S_out[6] += S.xz();
+	S_out[7] += S.yz();
+	S_out[8] += S.zz();
 
-	CC_out;
+	for (int i=0; i<36; i++)
+		CC_out[i] += css.d[i];
 }
 }
