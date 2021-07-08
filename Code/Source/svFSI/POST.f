@@ -733,11 +733,11 @@
                   sigma = MATMUL(P1, TRANSPOSE(F))
                   IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF
 
-               ELSE IF (cPhys .EQ. phys_struct) THEN
-                  CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya, S,Dm)
-                  P1 = MATMUL(F, S)
-                  sigma = MATMUL(P1, TRANSPOSE(F))
-                  IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF
+!               ELSE IF (cPhys .EQ. phys_struct) THEN
+!                  CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya, S,Dm)
+!                  P1 = MATMUL(F, S)
+!                  sigma = MATMUL(P1, TRANSPOSE(F))
+!                  IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF
 
                END IF
 
