@@ -21,7 +21,67 @@
 // variables of the material (and its base classes).
 extern"C"
 {
+
 void stress_tangent_(const double* Fe, const double* fl, const double* xgp, const double* time, double* S_out, double* CC_out)
+{
+	// convert deformation gradient to FEBio format
+	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
+
+	// material parameters
+	const double young = 1000.0;
+	const double nu = 0.4;
+
+	// lame parameters
+	const double mu = young / ( 2.0*(1.0+nu) );
+	const double lambda = nu*young / ((1.0+nu)*(1.0-2.0*nu));
+
+	// define identity tensor and some useful dyadic products of the identity tensor
+	const mat3dd I(1.0);
+	tens4ds IxI = dyad1s(I);
+	tens4ds IoI = dyad4s(I);
+	tens4dss cIxI = tens4dss(IxI);
+	tens4dss cIoI = tens4dss(IoI);
+
+	// green-lagrange strain
+	mat3ds E = 0.5 * ((F.transpose() * F).sym()- I);
+
+	// stress
+	mat3ds S = lambda*E.tr()*I + 2.0 * mu * E;
+
+	// tangent
+	tens4dss css = lambda * cIxI + 2.0 * mu * cIoI;
+
+	// convert to vector for FORTRAN
+	typedef double (*ten2)[3];
+	typedef double (*ten4)[3][3][3];
+
+	ten2 S2 = (ten2) S_out;
+	ten4 C4 = (ten4) CC_out;
+
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+			S2[j][i] = S(i, j);
+
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+			for (int k=0; k < 3; k++)
+				for (int l=0; l < 3; l++)
+					C4[l][k][j][i] = css(i, j, k, l);
+
+
+//	std::cout<<scientific<<std::setprecision(17);
+////	std::cout<<E.tr()<<"\n"<<std::endl;
+//	std::cout<<"\nE";
+//	for (int i=0; i < 3; i++)
+//		for (int j=0; j < 3; j++)
+//			std::cout<<"\n"<<E(i, j);
+////			for (int k=0; k < 3; k++)
+////				for (int l=0; l < 3; l++)
+////					std::cout<<"\n"<<css(i, j, k, l);
+//	std::cout<<"\n"<<std::endl;
+}
+
+void stress_tangent_cmm_(const double* Fe, const double* fl, const double* xgp, const double* time, double* S_out, double* CC_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[1], Fe[2], Fe[3], Fe[4], Fe[5], Fe[6], Fe[7], Fe[8]);
@@ -215,7 +275,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* xgp, cons
 
 		css = tens4dss(c);		// c in tens4dss form
 	}
-
+//
 	// mrp089: how do we store step I?
 	else if (t <= partialtime + eps) {
 
@@ -442,52 +502,57 @@ void stress_tangent_(const double* Fe, const double* fl, const double* xgp, cons
 				for (int l=0; l < 3; l++)
 					C4[l][k][j][i] = css(i, j, k, l);
 
-// check for nans
+	std::cout<<scientific<<std::setprecision(2);
+
+//	std::cout<<"t "<<*time<<std::endl;
+//
+//	std::cout<<"gpx";
+//	for (int i=0; i<3; i++)
+//		std::cout<<" "<<xgp[i];
+//	std::cout<<std::endl;
+//
+//	std::cout<<"J "<<J<<std::endl;
+//
+//	std::cout<<"Fe";
+//	for (int i=0; i<9; i++)
+//	{
+//		if (i%3 == 0)
+//			std::cout<<std::endl;
+//		std::cout<<"\t"<<Fe[i];
+//	}
+//	std::cout<<std::endl;
+
+	std::cout<<"S";
 	for (int i=0; i<9; i++)
 	{
-		if (std::isnan(S_out[i]))
-		{
-			std::cout<<scientific<<std::setprecision(2);
-
-			std::cout<<"t "<<*time<<std::endl;
-
-			std::cout<<"gpx";
-			for (int i=0; i<3; i++)
-				std::cout<<" "<<xgp[i];
+		if (i%3 == 0)
 			std::cout<<std::endl;
-
-			std::cout<<"J "<<J<<std::endl;
-
-			std::cout<<"Fe";
-			for (int i=0; i<9; i++)
-			{
-				if (i%3 == 0)
-					std::cout<<std::endl;
-				std::cout<<"\t"<<Fe[i];
-			}
-			std::cout<<std::endl;
-
-			std::cout<<"S";
-			for (int i=0; i<9; i++)
-			{
-				if (i%3 == 0)
-					std::cout<<std::endl;
-				std::cout<<"\t"<<S_out[i];
-			}
-			std::cout<<std::endl;
-
-			std::cout<<"C";
-			for (int i=0; i < 3; i++)
-				for (int j=0; j < 3; j++)
-					for (int k=0; k < 3; k++)
-						for (int l=0; l < 3; l++)
-							std::cout<<" "<<css(i, j, k, l);
-			std::cout<<std::endl;
-
-			std::terminate();
-		}
+		std::cout<<"\t"<<S_out[i];
 	}
+	std::cout<<"\n"<<std::endl;
+//	//
+//	std::cout<<"N";
+//	for (int i=0; i<3; i++)
+//	{
+//		std::cout<<"\t"<<N[i].x;
+//		std::cout<<"\t"<<N[i].y;
+//		std::cout<<"\t"<<N[i].z;
+//		std::cout<<std::endl;
+//	}
+//	std::cout<<std::endl;
+//
+	std::cout<<"C";
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+			for (int k=0; k < 3; k++)
+				for (int l=0; l < 3; l++)
+					std::cout<<" "<<css(i, j, k, l);
+	std::cout<<"\n"<<std::endl;
 
+//	check for nans
+	for (int i=0; i<9; i++)
+		if (std::isnan(S_out[i]))
+			std::terminate();
 }
 }
 
