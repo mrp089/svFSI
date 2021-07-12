@@ -2481,6 +2481,10 @@ c     2         "can be applied for Neumann boundaries only"
       CASE ("GR_Equilibrated")
          lDmn%stM%isoType = stGR_equi
 
+         ! not sure why this needs to be set if no penalty is used
+         lDmn%stM%Kpen = kap
+         RETURN
+
       CASE DEFAULT
          err = "Undefined constitutive model used"
       END SELECT
