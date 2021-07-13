@@ -22,7 +22,7 @@
 extern"C"
 {
 
-void stress_tangent_(const double* Fe, const double* fl, const double* xgp, const double* time, double* S_out, double* CC_out)
+void stress_tangent_(const double* Fe, const double* fl, const double* time, double* S_out, double* CC_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
