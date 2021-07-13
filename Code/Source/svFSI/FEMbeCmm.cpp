@@ -27,85 +27,21 @@ void stress_tangent_(const double* Fe, const double* fl, const double* xgp, cons
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
 
-	// material parameters
-	const double young = 1000.0;
-	const double nu = 0.4;
+	// radial (from file)
+	vec3d f_rad(fl[0], fl[1], fl[2]);
 
-	// lame parameters
-	const double mu = young / ( 2.0*(1.0+nu) );
-	const double lambda = nu*young / ((1.0+nu)*(1.0-2.0*nu));
+	// axial (constant)
+	vec3d f_axi(0.0, 0.0, 1.0);
 
-	// define identity tensor and some useful dyadic products of the identity tensor
-	const mat3dd I(1.0);
-	tens4ds IxI = dyad1s(I);
-	tens4ds IoI = dyad4s(I);
-	tens4dss cIxI = tens4dss(IxI);
-	tens4dss cIoI = tens4dss(IoI);
-
-	// green-lagrange strain
-	mat3ds E = 0.5 * ((F.transpose() * F).sym()- I);
-
-	// stress
-	mat3ds S = lambda*E.tr()*I + 2.0 * mu * E;
-
-	// tangent
-	tens4dss css = lambda * cIxI + 2.0 * mu * cIoI;
-
-	// convert to vector for FORTRAN
-	typedef double (*ten2)[3];
-	typedef double (*ten4)[3][3][3];
-
-	ten2 S2 = (ten2) S_out;
-	ten4 C4 = (ten4) CC_out;
-
-	for (int i=0; i < 3; i++)
-		for (int j=0; j < 3; j++)
-			S2[j][i] = S(i, j);
-
-	for (int i=0; i < 3; i++)
-		for (int j=0; j < 3; j++)
-			for (int k=0; k < 3; k++)
-				for (int l=0; l < 3; l++)
-					C4[l][k][j][i] = css(i, j, k, l);
-
-
-//	std::cout<<scientific<<std::setprecision(17);
-////	std::cout<<E.tr()<<"\n"<<std::endl;
-//	std::cout<<"\nE";
-//	for (int i=0; i < 3; i++)
-//		for (int j=0; j < 3; j++)
-//			std::cout<<"\n"<<E(i, j);
-////			for (int k=0; k < 3; k++)
-////				for (int l=0; l < 3; l++)
-////					std::cout<<"\n"<<css(i, j, k, l);
-//	std::cout<<"\n"<<std::endl;
-}
-
-void stress_tangent_cmm_(const double* Fe, const double* fl, const double* xgp, const double* time, double* S_out, double* CC_out)
-{
-	// convert deformation gradient to FEBio format
-	mat3d F(Fe[0], Fe[1], Fe[2], Fe[3], Fe[4], Fe[5], Fe[6], Fe[7], Fe[8]);
-
-	// fiber directions (currently unused)
-	vec3d f1(fl[0], fl[1], fl[2]);
-	vec3d f2(fl[3], fl[4], fl[5]);
-	vec3d f3 = f1 ^ f2;
+	// circumferential (from cross product)
+	vec3d f_cir = f_rad ^ f_axi;
 
 	// determinant of the deformation gradient
 	const double J = F.det();
 
-	// retrieve material position
-	vec3d  X = {xgp[0], xgp[1], xgp[2]};
-//	vec3d  X = {1.0, 1.0, 0.0};
-
 	// get current and end times
-//	double t = GetFEModel()->GetTime().currentTime;
-//	double endtime = GetFEModel()->GetCurrentStep()->m_tend;
 	const double t = *time;
 	const double endtime = 11.0;							// 11.0 | 31.0-32.0 (TEVG)
-
-//	std::cout<<"time "<<*time<<std::endl;
-//	std::cout<<"xgp "<<xgp[0]<<" "<<xgp[1]<<" "<<xgp[2]<<std::endl;
 
 	const double eps = std::numeric_limits<double>::epsilon();
 	const double partialtime = endtime;			// partialtime <= endtime | 10.0 | 10.4 (for TI calculation)
@@ -115,24 +51,15 @@ void stress_tangent_cmm_(const double* Fe, const double* fl, const double* xgp, 
 	const double rIo = 0.6468;					// 0.6468 | 0.5678
 	const double hwaves = 2.0;
 	const double lo = 30.0;
-	const vec3d  Xcl = {0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z};		// center line
-
-	const vec3d NX = {X.x-Xcl.x,X.y-Xcl.y,X.z-Xcl.z};								// radial vector
-
-	const double ro = sqrt(NX*NX);
-
-	NX /= ro;
+	const double ro = sqrt(f_rad*f_rad);
 
 	// retrieve local element basis directions
 	vec3d N[3];
 
 	// pointwise, consistent with mesh generated with Matlab script <NodesElementsAsy.m>
-	N[2] = {0.0, imper/100.0*rIo*hwaves*M_PI/lo*cos(hwaves*M_PI*X.z/lo), 1.0}; N[2] = N[2]/sqrt(N[2]*N[2]);		// axial = d(Xcl)/d(z)
-	N[1] = {-NX.y, NX.x, NX.z};																					// circumferential
-	N[0] = N[2]^N[1];
-
-	// elementwise, from input file
-	// N[2] = pt.m_Q.col(0); N[1] = pt.m_Q.col(1); N[0] = pt.m_Q.col(2);							// axial, circumferential, radial
+	N[0] = f_rad;
+	N[1] = f_cir;
+	N[2] = f_axi;
 
 	const double phieo = 0.34;								// 0.34 (CMAME | KNOCKOUTS) | 1.00 (TEVG) | 1.0/3.0 (TEVG)
 	const double phimo = 0.5*(1.0-phieo);
@@ -510,6 +437,10 @@ void stress_tangent_cmm_(const double* Fe, const double* fl, const double* xgp, 
 //	for (int i=0; i<3; i++)
 //		std::cout<<" "<<xgp[i];
 //	std::cout<<std::endl;
+
+//	std::cout<<"f1 "<<f1.x<<" "<<f1.y<<" "<<f1.z<<std::endl;
+//	std::cout<<"f2 "<<f2.x<<" "<<f2.y<<" "<<f2.z<<std::endl;
+//	std::cout<<"f3 "<<f3.x<<" "<<f3.y<<" "<<f3.z<<std::endl;
 //
 //	std::cout<<"J "<<J<<std::endl;
 //
@@ -522,15 +453,6 @@ void stress_tangent_cmm_(const double* Fe, const double* fl, const double* xgp, 
 //	}
 //	std::cout<<std::endl;
 
-	std::cout<<"S";
-	for (int i=0; i<9; i++)
-	{
-		if (i%3 == 0)
-			std::cout<<std::endl;
-		std::cout<<"\t"<<S_out[i];
-	}
-	std::cout<<"\n"<<std::endl;
-//	//
 //	std::cout<<"N";
 //	for (int i=0; i<3; i++)
 //	{
@@ -540,20 +462,78 @@ void stress_tangent_cmm_(const double* Fe, const double* fl, const double* xgp, 
 //		std::cout<<std::endl;
 //	}
 //	std::cout<<std::endl;
-//
-	std::cout<<"C";
-	for (int i=0; i < 3; i++)
-		for (int j=0; j < 3; j++)
-			for (int k=0; k < 3; k++)
-				for (int l=0; l < 3; l++)
-					std::cout<<" "<<css(i, j, k, l);
-	std::cout<<"\n"<<std::endl;
+
+
+//	std::cout<<"S";
+//	for (int i=0; i<9; i++)
+//	{
+//		if (i%3 == 0)
+//			std::cout<<std::endl;
+//		std::cout<<"\t"<<S_out[i];
+//	}
+//	std::cout<<"\n"<<std::endl;
+//	//
+//	std::cout<<"C";
+//	for (int i=0; i < 3; i++)
+//		for (int j=0; j < 3; j++)
+//			for (int k=0; k < 3; k++)
+//				for (int l=0; l < 3; l++)
+//					std::cout<<" "<<css(i, j, k, l);
+//	std::cout<<"\n"<<std::endl;
 
 //	check for nans
 	for (int i=0; i<9; i++)
 		if (std::isnan(S_out[i]))
 			std::terminate();
 }
+}
+
+
+void stress_tangent_stvk_(const double* Fe, const double* fl, const double* xgp, const double* time, double* S_out, double* CC_out)
+{
+	// convert deformation gradient to FEBio format
+	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
+
+	// material parameters
+	const double young = 1000.0;
+	const double nu = 0.4;
+
+	// lame parameters
+	const double mu = young / ( 2.0*(1.0+nu) );
+	const double lambda = nu*young / ((1.0+nu)*(1.0-2.0*nu));
+
+	// define identity tensor and some useful dyadic products of the identity tensor
+	const mat3dd I(1.0);
+	tens4ds IxI = dyad1s(I);
+	tens4ds IoI = dyad4s(I);
+	tens4dss cIxI = tens4dss(IxI);
+	tens4dss cIoI = tens4dss(IoI);
+
+	// green-lagrange strain
+	mat3ds E = 0.5 * ((F.transpose() * F).sym()- I);
+
+	// stress
+	mat3ds S = lambda*E.tr()*I + 2.0 * mu * E;
+
+	// tangent
+	tens4dss css = lambda * cIxI + 2.0 * mu * cIoI;
+
+	// convert to vector for FORTRAN
+	typedef double (*ten2)[3];
+	typedef double (*ten4)[3][3][3];
+
+	ten2 S2 = (ten2) S_out;
+	ten4 C4 = (ten4) CC_out;
+
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+			S2[j][i] = S(i, j);
+
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+			for (int k=0; k < 3; k++)
+				for (int l=0; l < 3; l++)
+					C4[l][k][j][i] = css(i, j, k, l);
 }
 
 //void print_mat(const std::string name, const double* mat) {
