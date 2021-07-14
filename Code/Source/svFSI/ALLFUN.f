@@ -1177,6 +1177,8 @@
       IF (ALLOCATED(lM%fN))      DEALLOCATE(lM%fN)
       IF (ALLOCATED(lM%Nx))      DEALLOCATE(lM%Nx)
       IF (ALLOCATED(lM%Nxx))     DEALLOCATE(lM%Nxx)
+      IF (ALLOCATED(lM%grVo))    DEALLOCATE(lM%grVo)
+      IF (ALLOCATED(lM%grVn))    DEALLOCATE(lM%grVn)
 
       IF (ALLOCATED(lM%fs)) THEN
          DO i=1, lM%nFs

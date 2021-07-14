@@ -40,12 +40,12 @@
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
-      TYPE(mshType), INTENT(IN) :: lM
+      TYPE(mshType), INTENT(INOUT) :: lM
       REAL(KIND=RKIND), INTENT(IN) :: Ag(tDof,tnNo), Yg(tDof,tnNo),
      2   Dg(tDof,tnNo)
 
       INTEGER(KIND=IKIND) a, e, g, Ac, eNoN, cPhys, iFn, nFn
-      REAL(KIND=RKIND) w, Jac, ksix(nsd,nsd)
+      REAL(KIND=RKIND) w, Jac, grInt(24), ksix(nsd,nsd)
 
       INTEGER(KIND=IKIND), ALLOCATABLE :: ptr(:)
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
@@ -104,14 +104,18 @@
             w = lM%w(g) * Jac
             N = lM%N(:,g)
 
+!           retrieve g&r internal variables
+            grInt(:) = 0._RKIND
+            IF (ALLOCATED(lM%grVo)) grInt(1:24) = lM%grVo(:,g,e)
+
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
                CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2            pS0l, pSl, ya_l, lR, lK)
+     2            pS0l, pSl, ya_l, lR, lK, grInt)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2            pS0l, pSl, ya_l, lR, lK)
+     2            pS0l, pSl, ya_l, lR, lK, grInt)
 
             END IF
 
@@ -123,6 +127,10 @@
                   pSa(Ac)   = pSa(Ac)   + w*N(a)
                END DO
             END IF
+
+!           Update g&r variables
+            IF (ALLOCATED(lM%grVo)) lM%grVn(:,g,e) = grInt(1:24)
+
          END DO ! g: loop
 
 !        Assembly
@@ -144,7 +152,7 @@
       END SUBROUTINE CONSTRUCT_dSOLID
 !####################################################################
       SUBROUTINE STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2   pS0l, pSl, ya_l, lR, lK)
+     2   pS0l, pSl, ya_l, lR, lK, grInt)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
@@ -153,7 +161,7 @@
      2   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN),
      3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN)
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(6)
-      REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,eNoN),
+      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(24), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
 
       INTEGER(KIND=IKIND) :: a, b, i, j, k
@@ -211,7 +219,7 @@
 
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
-      CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, S, Dm)
+      CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm)
 
 !     Prestress
       pSl(1) = S(1,1)
@@ -323,7 +331,7 @@
       END SUBROUTINE STRUCT3D
 !####################################################################
       SUBROUTINE STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2   pS0l, pSl, ya_l, lR, lK)
+     2   pS0l, pSl, ya_l, lR, lK, grInt)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
@@ -332,7 +340,7 @@
      2   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(2,eNoN),
      3   fN(2,nFn), pS0l(3,eNoN), ya_l(eNoN)
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(3)
-      REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,eNoN),
+      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(24), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
 
       INTEGER(KIND=IKIND) :: a, b, i, j
@@ -376,7 +384,7 @@
 
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notation
-      CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, S, Dm)
+      CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm)
 
 !     Prestress
       pSl(1) = S(1,1)

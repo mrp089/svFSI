@@ -38,7 +38,7 @@
 
 !     Compute 2nd Piola-Kirchhoff stress and material stiffness tensors
 !     including both dilational and isochoric components
-      SUBROUTINE GETPK2CC(lDmn, F, nfd, fl, ya, S, Dm)
+      SUBROUTINE GETPK2CC(lDmn, F, nfd, fl, ya, grInt, S, Dm)
       USE MATFUN
       USE COMMOD
       IMPLICIT NONE
@@ -46,6 +46,7 @@
       INTEGER(KIND=IKIND), INTENT(IN) :: nfd
       REAL(KIND=RKIND), INTENT(IN) :: F(nsd,nsd), fl(nsd,nfd), ya
       REAL(KIND=RKIND), INTENT(OUT) :: S(nsd,nsd), Dm(nsymd,nsymd)
+      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(24)
 
       TYPE(stModelType) :: stM
       REAL(KIND=RKIND) :: nd, Kp, J, J2d, J4d, trE, p, pl, Inv1, Inv2,
@@ -362,7 +363,7 @@
          END IF
       
       CASE (stGR_equi)
-            CALL stress_tangent(F, fl, time, S, CC)
+            CALL stress_tangent(F, fl, time, grInt, S, CC)
 
       CASE DEFAULT
          err = "Undefined material constitutive model"

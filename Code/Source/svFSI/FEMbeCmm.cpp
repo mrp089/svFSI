@@ -22,7 +22,7 @@
 extern"C"
 {
 
-void stress_tangent_(const double* Fe, const double* fl, const double* time, double* S_out, double* CC_out)
+void stress_tangent_(const double* Fe, const double* fl, const double* time, double* grInt, double* S_out, double* CC_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
@@ -130,12 +130,13 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// spatial moduli for elastin
 	tens4ds ce(0.0);								// phieo/J*(FcF:GecGe:Cehat:GecGe:FTcFT) = phieo/J*(FcF:GecGe:0:GecGe:FTcFT)
 
-	double    Jo;
-	double   svo;
-	mat3ds   smo;
-	mat3ds   sco;
-	mat3d    Fio;
-	double  phic;
+	double    Jo; // 1
+	double   svo; // 1
+	double  phic; // 1
+	mat3ds   smo; // 6
+	mat3ds   sco; // 6
+	mat3d    Fio; // 9
+	// = 24 internal variables to be stored
 
 	// computation of the second Piola-Kirchhoff stress
 	mat3ds S;
@@ -144,6 +145,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	mat3ds sfpro;
 	double eigenval[3]; vec3d eigenvec[3];
 	if (t <= 1.0 + eps) {
+		grInt[0] = 1337.0;
 
 		const double Jdep = 0.9999;
 		const double lm = 1.0e3*mu;
@@ -206,6 +208,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// mrp089: how do we store step I?
 	else if (t <= partialtime + eps) {
 
+		std::cout<<grInt[0]<<std::endl;
 		phic = phico;																// initial guess
 		double dRdc = J/Jo*(1.0+phimo/phico*eta*pow(J/Jo*phic/phico,eta-1.0));		// initial tangent d(R)/d(phic)
 		double Rphi = phieo+phimo*pow(J/Jo*phic/phico,eta)+J/Jo*phic-J/Jo;			// initial residue

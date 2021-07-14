@@ -521,7 +521,7 @@
       REAL(KIND=RKIND) w, Jac, detF, Je, ya, Ja, elM, nu, lambda, mu,
      2   p, trS, vmises, xi(nsd), xi0(nsd), xp(nsd), ed(nsymd),
      3   Im(nsd,nsd), F(nsd,nsd), C(nsd,nsd), Eg(nsd,nsd), P1(nsd,nsd),
-     4   S(nsd,nsd), sigma(nsd,nsd), Dm(nsymd,nsymd)
+     4   S(nsd,nsd), sigma(nsd,nsd), Dm(nsymd,nsymd), grInt(24)
       TYPE(fsType) :: fs
 
       INTEGER, ALLOCATABLE :: eNds(:)
@@ -626,6 +626,10 @@
                END IF
             END DO
             detF = MAT_DET(F, nsd)
+
+!           retrieve g&r internal variables
+            grInt(:) = 0._RKIND
+            IF (ALLOCATED(lM%grVn)) grInt(1:24) = lM%grVn(:,g,e)
 
             ed = 0._RKIND
             IF (cPhys .EQ. phys_lElas) THEN
@@ -734,7 +738,8 @@
                   IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF
 
                ELSE IF (cPhys .EQ. phys_struct) THEN
-                  CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya, S,Dm)
+                  CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
+     2               grInt, S,Dm)
                   P1 = MATMUL(F, S)
                   sigma = MATMUL(P1, TRANSPOSE(F))
                   IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF

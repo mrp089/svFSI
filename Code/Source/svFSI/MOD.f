@@ -581,6 +581,10 @@
          REAL(KIND=RKIND), ALLOCATABLE :: Nx(:,:,:)
 !        Second derivatives of shape functions - used for shells & IGA
          REAL(KIND=RKIND), ALLOCATABLE :: Nxx(:,:,:)
+!        Store G&R model variables at integration point level (old)
+         REAL(KIND=RKIND), ALLOCATABLE :: grVo(:,:,:)
+!        Store G&R model variables at integration point level (new)
+         REAL(KIND=RKIND), ALLOCATABLE :: grVn(:,:,:)
 !        Mesh Name
          CHARACTER(LEN=stdL) :: name
 !        Mesh nodal adjacency

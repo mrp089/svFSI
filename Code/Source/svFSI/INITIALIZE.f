@@ -253,6 +253,25 @@
          END IF
       END IF
 
+!     growth and remodeling
+!     Check all domains if a G&R model is used on a mesh and
+!     allocated damage variables on that mesh
+      DO iEq=1, nEq
+         DO iM=1, nMsh
+            IF (ALLOCATED(msh(iM)%grVo)) CYCLE
+            DO a=1, msh(iM)%nEl
+               iDmn = DOMAIN(msh(iM), iEq, a)
+               IF (eq(iEq)%dmn(iDmn)%stM%isoType .EQ. stGR_equi) THEN
+                  ALLOCATE(msh(iM)%grVo(24,msh(iM)%nG,msh(iM)%nEl))
+                  ALLOCATE(msh(iM)%grVn(24,msh(iM)%nG,msh(iM)%nEl))
+                  msh(iM)%grVo = 0._RKIND
+                  msh(iM)%grVn = 0._RKIND
+                  EXIT
+               END IF
+            END DO
+         END DO
+      END DO
+
       IF (.NOT.resetSim) THEN
          IF (.NOT.ALLOCATED(rmsh%flag)) ALLOCATE(rmsh%flag(nMsh))
          rmsh%flag(:) = .FALSE.
@@ -596,8 +615,49 @@
       IF (ANY(tStamp .NE. stamp)) err = "Simulation stamp"//
      2   " does not match with "//fName
 
+      CALL READGR()
+
       RETURN
       END SUBROUTINE INITFROMBIN
+!--------------------------------------------------------------------
+      SUBROUTINE READGR()
+      USE COMMOD
+      IMPLICIT NONE
+
+      LOGICAL flag
+      CHARACTER(LEN=stdL) fName
+      INTEGER(KIND=IKIND) i, e, g, iM, fid, myID
+
+      flag = .FALSE.
+      DO iM=1, nMsh
+         IF (ALLOCATED(msh(iM)%grVo)) THEN
+            flag = .TRUE.
+            EXIT
+         END IF
+      END DO
+
+      IF (flag) THEN
+         fid   = 127
+         myID  = cm%tf()
+         WRITE(fName,'(A,I3.3)') TRIM(appPath)//"grHistr.", myID
+
+         OPEN(fid, FILE=TRIM(fName), FORM='UNFORMATTED')
+         DO iM=1, nMsh
+            IF (ALLOCATED(msh(iM)%grVn)) THEN
+               DO e=1, msh(iM)%nEl
+                  DO g=1, msh(iM)%nG
+                     DO i=1, 24
+                        READ(fid) msh(iM)%grVn(i,g,e)
+                     END DO
+                  END DO
+               END DO
+            END IF
+         END DO
+         CLOSE(fid)
+      END IF
+
+      RETURN
+      END SUBROUTINE READGR
 !####################################################################
       SUBROUTINE FINALIZE
       USE COMMOD
