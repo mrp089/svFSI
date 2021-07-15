@@ -110,9 +110,12 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// compute U from polar decomposition of deformation gradient tensor
 	mat3ds U; mat3d R; F.right_polar(R,U);
+	double eigenval[3]; vec3d eigenvec[3];
+	U.eigen2(eigenval,eigenvec);
+	const mat3ds Ui = U.inverse();            					// inverse of U
+	const mat3d  ui(Ui);
 
 	// right Cauchy-Green tensor and its inverse
-//	mat3ds C = pt.RightCauchyGreen();
 	const mat3ds C = (F.transpose() * F).sym();
 	const mat3ds Ci = C.inverse();
 
@@ -130,22 +133,39 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// spatial moduli for elastin
 	tens4ds ce(0.0);								// phieo/J*(FcF:GecGe:Cehat:GecGe:FTcFT) = phieo/J*(FcF:GecGe:0:GecGe:FTcFT)
 
-	double    Jo; // 1
-	double   svo; // 1
-	double  phic; // 1
-	mat3ds   smo; // 6
-	mat3ds   sco; // 6
-	mat3d    Fio; // 9
-	// = 24 internal variables to be stored
+	// retrieve internal variables (1+1+1+6+6+9 = 24)
+	double    Jo = grInt[0];
+	double   svo = grInt[1];
+	double  phic = grInt[2];
+	mat3ds   smo;
+	mat3ds   sco;
+	mat3d    Fio;
+	int k = 3;
+	for (int i=0; i<3; i++)
+		for (int j=i; j<3; j++)
+		{
+			smo(i,j) = grInt[k];
+			k++;
+		}
+	for (int i=0; i<3; i++)
+		for (int j=i; j<3; j++)
+		{
+			sco(i,j) = grInt[k];
+			k++;
+		}
+	for (int i=0; i<3; i++)
+		for (int j=0; j<3; j++)
+		{
+			Fio(i,j) = grInt[k];
+			k++;
+		}
 
 	// computation of the second Piola-Kirchhoff stress
 	mat3ds S;
 	// computation of spatial moduli
 	tens4dss css;
 	mat3ds sfpro;
-	double eigenval[3]; vec3d eigenvec[3];
 	if (t <= 1.0 + eps) {
-		grInt[0] = 1337.0;
 
 		const double Jdep = 0.9999;
 		const double lm = 1.0e3*mu;
@@ -192,8 +212,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		smo   = 1.0/J*(u*(Sm*u)).sym();
 		sco   = 1.0/J*(u*(Sc*u)).sym();
 		Fio   = F.inverse();
-//		Jh    = Jo;
-//		Fih   = Fio;
 		phic  = phico;
 
 		cf /= J; ca /= J;
@@ -203,12 +221,37 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		c += lm/J*(IxI-2.0*log(Jdep*J)*IoI);
 
 		css = tens4dss(c);		// c in tens4dss form
+
+		// update internal variables
+		grInt[0] = Jo;
+		grInt[1] = svo;
+		grInt[2] = phic;
+
+		int k = 3;
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				grInt[k] = smo(i,j);
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				grInt[k] = sco(i,j);
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=0; j<3; j++)
+			{
+				grInt[k] = Fio(i,j);
+				k++;
+			}
 	}
-//
-	// mrp089: how do we store step I?
 	else if (t <= partialtime + eps) {
 
-		std::cout<<grInt[0]<<std::endl;
+		// stress calculation
+		//=======================================================================
+
 		phic = phico;																// initial guess
 		double dRdc = J/Jo*(1.0+phimo/phico*eta*pow(J/Jo*phic/phico,eta-1.0));		// initial tangent d(R)/d(phic)
 		double Rphi = phieo+phimo*pow(J/Jo*phic/phico,eta)+J/Jo*phic-J/Jo;			// initial residue
@@ -273,9 +316,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		mat3ds sNa; sNa.zero();
 		if (Cratio>0) sNa = phim*(1.0-exp(-Cratio*Cratio))/(1.0-exp(-CB*CB))*sao;
 
-		const mat3ds Ui = U.inverse();            					// inverse of U
-		const mat3d  ui(Ui);
-
 		const mat3ds Sf = J*(ui*sNf*ui).sym();						// J*Ui*sNf*Ui
 		const mat3ds Sa = J*(ui*sNa*ui).sym();						// J*Ui*sNa*Ui
 
@@ -285,19 +325,17 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		S = Sx - J*p*Ci;
 
-//		pt.m_Jh  = J;
-//		pt.m_Fih = F.inverse();
+		// tangent calculation
+		//=======================================================================
 
 		// 2nd P-K stresses
 		const mat3ds Se = (phieo*mu*Ge*Ge).sym();								// phieo*Ge*Sehat*Ge = phieo*Ge*(mu*I)*Ge
 		const mat3ds Sm = J*(ui*sNm*ui).sym();						// J*Ui*sNm*Ui
 		const mat3ds Sc = J*(ui*sNc*ui).sym();						// J*Ui*sNc*Ui
-//		mat3ds Sa = J*(ui*sNa*ui).sym();						// J*Ui*sNa*Ui
-
-//		mat3ds Sf = phim*Sm+phic*Sc;							// J*Ui*sNf*Ui
 
 		// mrp089: is this consistent with the above definition from 2PK?
-//		mat3ds Sx = Se+Sf+phim*Sa;
+		Sf = phim*Sm+phic*Sc;							// J*Ui*sNf*Ui
+		Sx = Se+Sf+phim*Sa;
 
 		// associated Cauchy stresses
 		const mat3ds sm = 1.0/J*(F*(Sm*F.transpose())).sym();
@@ -380,14 +418,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// contribution due to change in Cauchy stresses at constituent level (orientation only, for now)
 		const tens4dss cpnss(0.0);
 
-//		double lpo = (Fio.inverse()*Np).norm();					// original referential stretch for deposition stretch calculation
-//		double lno = (Fio.inverse()*Nn).norm();					// idem for symmetric
-//
-//		double lcp2 = (Gc*lpo)*(Gc*lpo);						// deposition stretch calculation (computational purposes)
-//		double lcn2 = (Gc*lno)*(Gc*lno);						// idem for symmetric
-//
-//		double lz = (F*(Fio*N[2])).norm();						// lz -> 1 for F -> Fo
-
 		alpha = atan(tan(alpha)*pow(lt/lz,aexp));				// update alpha
 		Np = N[1]*sin(alpha)+N[2]*cos(alpha);					// update diagonal fiber vector
 		Nn = N[1]*sin(alpha)-N[2]*cos(alpha);					// idem for symmetric
@@ -414,68 +444,51 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 									 + svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss)
 									 - 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
 
-	}
-
-	// convert to vector for FORTRAN
-	typedef double (*ten2)[3];
-	typedef double (*ten4)[3][3][3];
-
-	ten2 S2 = (ten2) S_out;
-	for (int i=0; i < 3; i++)
-		for (int j=0; j < 3; j++)
-			S2[j][i] = S(i, j);
-
-	ten4 C4 = (ten4) CC_out;
-	for (int i=0; i < 3; i++)
-		for (int j=0; j < 3; j++)
-			for (int k=0; k < 3; k++)
-				for (int l=0; l < 3; l++)
-					C4[l][k][j][i] = css(i, j, k, l);
-
-	std::cout<<scientific<<std::setprecision(2);
-
-//	std::cout<<"t "<<*time<<std::endl;
-//
-//	std::cout<<"gpx";
-//	for (int i=0; i<3; i++)
-//		std::cout<<" "<<xgp[i];
-//	std::cout<<std::endl;
-
-//	std::cout<<"f1 "<<f1.x<<" "<<f1.y<<" "<<f1.z<<std::endl;
-//	std::cout<<"f2 "<<f2.x<<" "<<f2.y<<" "<<f2.z<<std::endl;
-//	std::cout<<"f3 "<<f3.x<<" "<<f3.y<<" "<<f3.z<<std::endl;
-//
-//	std::cout<<"J "<<J<<std::endl;
-//
-//	std::cout<<"Fe";
-//	for (int i=0; i<9; i++)
-//	{
-//		if (i%3 == 0)
+//		for (int i=0; i<3; i++)
+//		{
+//			std::cout<<"N"<<i<<" "<<N[i].x<<" "<<N[i].y<<" "<<N[i].z;
 //			std::cout<<std::endl;
-//		std::cout<<"\t"<<Fe[i];
-//	}
-//	std::cout<<std::endl;
+//		}
+//
+//		std::cout<<"smo";
+//		for (int i=0; i<3; i++)
+//		{
+//			for (int j=0; j<3; j++)
+//				std::cout<<"\t"<<smo(i,j);
+//			std::cout<<std::endl;
+//		}
+//		std::cout<<std::endl;
+//
+//		std::cout<<"sco";
+//		for (int i=0; i<3; i++)
+//		{
+//			for (int j=0; j<3; j++)
+//				std::cout<<"\t"<<sco(i,j);
+//			std::cout<<std::endl;
+//		}
+//		std::cout<<std::endl;
+//
+//		std::cout<<"Fio";
+//		for (int i=0; i<3; i++)
+//		{
+//			for (int j=0; j<3; j++)
+//				std::cout<<"\t"<<Fio(i,j);
+//			std::cout<<std::endl;
+//		}
+//		std::cout<<std::endl;
 
-//	std::cout<<"N";
+	}
+//	std::cout<<scientific<<std::setprecision(2);
+//
+//	std::cout<<"S";
 //	for (int i=0; i<3; i++)
 //	{
-//		std::cout<<"\t"<<N[i].x;
-//		std::cout<<"\t"<<N[i].y;
-//		std::cout<<"\t"<<N[i].z;
+//		for (int j=0; j<3; j++)
+//			std::cout<<"\t"<<S(i,j);
 //		std::cout<<std::endl;
 //	}
 //	std::cout<<std::endl;
-
-
-//	std::cout<<"S";
-//	for (int i=0; i<9; i++)
-//	{
-//		if (i%3 == 0)
-//			std::cout<<std::endl;
-//		std::cout<<"\t"<<S_out[i];
-//	}
-//	std::cout<<"\n"<<std::endl;
-//	//
+//
 //	std::cout<<"C";
 //	for (int i=0; i < 3; i++)
 //		for (int j=0; j < 3; j++)
@@ -484,10 +497,39 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //					std::cout<<" "<<css(i, j, k, l);
 //	std::cout<<"\n"<<std::endl;
 
-//	check for nans
-	for (int i=0; i<9; i++)
-		if (std::isnan(S_out[i]))
-			std::terminate();
+	// pull back to reference configuration
+	tens4dmm css_mm;
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+			for (int k=0; k < 3; k++)
+				for (int l=0; l < 3; l++)
+					css_mm(i,j,k,l) = css(i,j,k,l);
+
+	tens4dmm css_ref = J*css_mm.pp(F.inverse());
+
+	// convert to vector for FORTRAN
+	typedef double (*ten2)[3];
+	typedef double (*ten4)[3][3][3];
+
+	ten2 S2 = (ten2) S_out;
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+		{
+			S2[j][i] = S(i, j);
+			if (std::isnan(S(i, j)))
+				std::terminate();
+		}
+
+	ten4 C4 = (ten4) CC_out;
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+			for (int k=0; k < 3; k++)
+				for (int l=0; l < 3; l++)
+				{
+					C4[l][k][j][i] = css_ref(i, j, k, l);
+					if (std::isnan(css_ref(i, j, k, l)))
+						std::terminate();
+				}
 }
 }
 
