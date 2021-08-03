@@ -3,7 +3,7 @@ listed below.
 
 See Copyright-FEBio.txt for details.
 
-Copyright (c) 2020 University of Utah, The Trustees of Columbia University in
+Copyright (c) 2020 University of Utah, The Trustees of Columbia University in 
 the City of New York, and others.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -84,7 +84,7 @@ public:
 
 	// unary operators
 	tens4ds operator - () const;
-
+	
 	// double dot product with 2nd order tensor
 	mat3ds dot(const mat3ds& m) const;
     mat3ds dot(const mat3dd& m) const { return dot(mat3ds(m)); }
@@ -97,7 +97,7 @@ public:
 
 	// trace
 	double tr() const;
-
+	
 	// initialize to zero
 	void zero();
 
@@ -120,7 +120,7 @@ bool IsPositiveDefinite(const tens4ds& t);
 // outer (dyadic) products for symmetric matrices
 tens4ds dyad1s(const mat3dd& a);
 tens4ds dyad1s(const mat3ds& a);
-tens4ds dyad1s(const mat3dd& a, const mat3dd& b);
+tens4ds dyad1s(const mat3dd& a, const mat3dd& b); 
 tens4ds dyad1s(const mat3ds& a, const mat3dd& b);
 tens4ds dyad1s(const mat3ds& a, const mat3ds& b);
 inline tens4ds dyad1s(const mat3dd& a, const mat3ds& b) { return dyad1s(b, a); }
@@ -187,10 +187,10 @@ public:
 
 	// unary operators
 	tens4dms operator - () const;
-
+	
 	// trace
 	double tr() const;
-
+	
 	// initialize to zero
 	void zero();
 
@@ -249,7 +249,7 @@ public:
 private:
     double& operator () (int i, int j);
     double operator () (int i, int j) const;
-
+    
 public:
     // arithmetic operators
     tens4dmm operator + (const tens4dmm& t) const;
@@ -269,7 +269,7 @@ public:
 
     // unary operators
     tens4dmm operator - () const;
-
+    
     // double dot product with 2nd order tensor
     mat3ds dot(const mat3ds& m) const;
     mat3ds dot(const mat3dd& m) const { return dot(mat3ds(m)); }
@@ -296,72 +296,6 @@ public:
     tens4dmm pp(const mat3d& F);
 
 };
-
-//-----------------------------------------------------------------------------
-//! Class for 4th order tensors with minor symmetries only
-
-// Due to the lack of major symmetry, we have to store this tensor as a FULL 6x6 matrix.
-// The tensor is stored in column major order:
-//
-//       00   11   22   01   12   02    |
-//       -------------------------------+---
-//     /  0    6   12   18   24   30  \ | 00
-//     |  1    7   13   19   25   31  | | 11
-//     |  2    8   14   20   26   32  | | 22
-// A = |  3    9   15   21   27   33  | | 01
-//     |  4   10   16   22   28   34  | | 12
-//     \  5   11   17   23   29   35  / | 02
-//
-
-class tens4dss
-{
-public:
-    enum { NNZ = 36 };
-
-    // default constructor
-    tens4dss() {}
-    tens4dss(const double g);
-    tens4dss(double m[6][6]);
-    tens4dss(tens4ds& t);
-
-    // access operators
-    double& operator () (int i, int j, int k, int l);
-    double operator () (int i, int j, int k, int l) const;
-    double& operator () (int i, int j);
-    double operator () (int i, int j) const;
-
-    // arithmetic operators
-    tens4dss operator + (const tens4dss& t) const;
-    tens4dss operator - (const tens4dss& t) const;
-    tens4dss operator * (double g) const;
-    tens4dss operator / (double g) const;
-
-    // arithmetic assignment operators
-    tens4dss& operator += (const tens4dss& t);
-    tens4dss& operator -= (const tens4dss& t);
-    tens4dss& operator *= (double g);
-    tens4dss& operator /= (double g);
-
-    // unary operators
-    tens4dss operator - () const;
-
-    // initialize to zero
-    void zero();
-
-    // extract 6x6 matrix
-    void extract(double d[6][6]);
-
-public:
-    double d[NNZ];  // stored in column major order
-};
-
-tens4dss ddotss(const tens4dss& a, const tens4dss& b);
-tens4dss dyad1ss(const mat3ds& a, const mat3ds& b);
-
-inline tens4dss operator * (const double g, const tens4dss& a) { return a*g; }
-
-// The following file contains the actual definition of the class functions
-#include "tens4dss.hpp"
 
 // dyadic products of second-order tensors
 tens4dmm dyad1mm(const mat3ds& a, const mat3ds& b);
@@ -419,7 +353,7 @@ public:
 private:
 	double& operator () (int i, int j);
 	double operator () (int i, int j) const;
-
+    
 public:
     // arithmetic operators
     tens4d operator + (const tens4d& t) const;
@@ -439,7 +373,7 @@ public:
 
     // unary operators
     tens4d operator - () const;
-
+    
     // double dot product with 2nd order tensor
     mat3d dot(const mat3d& m) const;
     mat3d dot(const mat3ds& m) const { return dot(mat3d(m)); }
@@ -452,7 +386,7 @@ public:
 
     // trace
     double tr() const;
-
+    
     // initialize to zero
     void zero();
 
@@ -473,7 +407,7 @@ public:
 
     // calculates the inverse
     tens4d inverse() const;
-
+    
     // evaluate push/pull operation
 //    tens4d pp(const mat3d& F);
 
