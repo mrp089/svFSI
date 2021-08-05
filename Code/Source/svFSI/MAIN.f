@@ -137,7 +137,25 @@
 
             dbg = "Assembling equation <"//eq(cEq)%sym//">"
             DO iM=1, nMsh
+
+!        make quasi-static
+              An = 0._RKIND
+              Ao = 0._RKIND
+              Ag = 0._RKIND
+              Yn = 0._RKIND
+              Yo = 0._RKIND
+              Yg = 0._RKIND
+
                CALL GLOBALEQASSEM(msh(iM), Ag, Yg, Dg)
+
+!        make quasi-static
+              An = 0._RKIND
+              Ao = 0._RKIND
+              Ag = 0._RKIND
+              Yn = 0._RKIND
+              Yo = 0._RKIND
+              Yg = 0._RKIND
+
                dbg = "Mesh "//iM//" is assembled"
             END DO
 
