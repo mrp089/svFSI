@@ -154,6 +154,7 @@
       IF (dFlag) i = 3*tDof
       IF (pstEq) i = i + nsymd
       IF (sstEq) i = i + nsd
+!      IF (useVarWall) i = i + nvwp
       IF (cepEq) THEN
          i = i + nXion
          IF (cem%cpld) i = i + 1
@@ -722,6 +723,10 @@
       IF (ALLOCATED(pS0))      DEALLOCATE(pS0)
       IF (ALLOCATED(pSn))      DEALLOCATE(pSn)
       IF (ALLOCATED(pSa))      DEALLOCATE(pSa)
+
+!     Variable wall properties - SCHWARZ July 2021 ---------------------
+      IF (ALLOCATED(vWP0))      DEALLOCATE(vWP0)
+!     ------------------------------------------------------------------
 
       IF (ALLOCATED(Pinit))    DEALLOCATE(Pinit)
       IF (ALLOCATED(Vinit))    DEALLOCATE(Vinit)
