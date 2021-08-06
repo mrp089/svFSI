@@ -72,7 +72,7 @@
       ALLOCATE(ptr(eNoN), xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
      2   dl(tDof,eNoN), bfl(nsd,eNoN), fN(nsd,nFn), pS0l(nsymd,eNoN),
      3   pSl(nsymd), ya_l(eNoN), lR(dof,eNoN), lK(dof*dof,eNoN,eNoN),
-     4   lKd(dof*nsd,eNoN,eNoN)), lVWP(nvwp,eNoN))
+     4   lKd(dof*nsd,eNoN,eNoN), lVWP(nvwp,eNoN))
 
 !     Loop over all elements of mesh
       DO e=1, lM%nEl
