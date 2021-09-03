@@ -76,7 +76,8 @@
          eq(iEq)%am = 0.5_RKIND*(3._RKIND - eq(iEq)%roInf) /
      2                (1._RKIND + eq(iEq)%roInf)
 !     If the equation is second order, am is calculated as follows
-         am = (2._RKIND - eq(iEq)%roInf)/(1._RKIND + eq(iEq)%roInf)
+!         am = (2._RKIND - eq(iEq)%roInf)/(1._RKIND + eq(iEq)%roInf)
+         am = 1._RKIND
          SELECT CASE (eq(iEq)%phys)
          CASE (phys_fluid)
             eq(iEq)%dof = nsd + 1
@@ -131,7 +132,8 @@
          END SELECT
 
          eq(iEq)%pNorm = HUGE(eq(iEq)%pNorm)
-         eq(iEq)%af    = 1._RKIND/(1._RKIND + eq(iEq)%roInf)
+!         eq(iEq)%af    = 1._RKIND/(1._RKIND + eq(iEq)%roInf)
+         eq(iEq)%af    = 1._RKIND
          eq(iEq)%beta  = 0.25_RKIND*(1._RKIND + eq(iEq)%am -
      2      eq(iEq)%af)**2._RKIND
          eq(iEq)%gam   = 0.5_RKIND + eq(iEq)%am - eq(iEq)%af

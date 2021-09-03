@@ -7,6 +7,7 @@
 #include <limits>
 #define _USE_MATH_DEFINES						// to introduce pi constant (1/2)
 #include <math.h>								// to introduce pi constant (2/2)
+#include <cmath>
 //#include "FECore/log.h"							// to print to log file and/or screen
 #include <mat3d.h>
 #include <vec2d.h>

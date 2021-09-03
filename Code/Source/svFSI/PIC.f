@@ -167,7 +167,8 @@
       s       = eq(cEq)%s
       e       = eq(cEq)%e
       coef(1) = eq(cEq)%gam*dt
-      coef(2) = eq(cEq)%beta*dt*dt
+!      coef(2) = eq(cEq)%beta*dt*dt
+      coef(2) = eq(cEq)%beta
       coef(3) = 1._RKIND / eq(cEq)%am
       coef(4) = eq(cEq)%af*coef(1)*coef(3)
 
