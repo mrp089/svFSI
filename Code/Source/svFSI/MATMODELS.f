@@ -373,7 +373,7 @@
          END IF
       
       CASE (stGR_equi)
-            CALL stress_tangent(F, fl, time, grInt, S, CC)
+            CALL stress_tangent(F, fl, time, eVWP, grInt, S, CC)
             minorFlag = .TRUE.
 
       CASE DEFAULT

@@ -22,22 +22,40 @@
 extern"C"
 {
 
-void stress_tangent_(const double* Fe, const double* fl, const double* time, double* grInt, double* S_out, double* CC_out)
+void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
 
-	// radial (from file)
-	vec3d f_rad(fl[0], fl[1], fl[2]);
+//	// radial (from file)
+//	vec3d f_rad(fl[0], fl[1], fl[2]);
+//	f_rad /= f_rad.norm();
+//
+//	// axial (constant)
+//	vec3d f_axi(0.0, 0.0, 1.0);
+//
+//	// circumferential (from cross product)
+//	vec3d f_cir = f_rad ^ f_axi;
+//	f_cir /= f_cir.norm();
 
-	// axial (constant)
-	vec3d f_axi(0.0, 0.0, 1.0);
+	// right Cauchy-Green tensor and its inverse
+	const mat3ds C = (F.transpose() * F).sym();
+	const mat3ds Ci = C.inverse();
 
-	// circumferential (from cross product)
-	vec3d f_cir = f_rad ^ f_axi;
+	// compute U from polar decomposition of deformation gradient tensor
+	mat3ds U; mat3d R; F.right_polar(R,U);
+	double eigenval[3]; vec3d eigenvec[3];
+	U.eigen2(eigenval,eigenvec);
+
+    // Evaluate right stretch tensor U from C
+    vec3d v[3];
+    double lam[3];
+    C.eigen2(lam, v);
+    lam[0] = sqrt(lam[0]); lam[1] = sqrt(lam[1]); lam[2] = sqrt(lam[2]);
+    const double J = lam[0]*lam[1]*lam[2];
 
 	// determinant of the deformation gradient
-	const double J = F.det();
+//	const double J = F.det();
 
 	// get current and end times
 	const double t = *time;
@@ -53,15 +71,31 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double rIo = 0.6468;					// 0.6468 | 0.5678
 	const double hwaves = 2.0;
 	const double lo = 30.0;
-	const double ro = 0.66689;
+//	const double ro = eVWP[0];
+//
+//	// retrieve local element basis directions
+//	vec3d N[3];
+//
+//	// pointwise, consistent with mesh generated with Matlab script <NodesElementsAsy.m>
+//	N[0] = f_rad;
+//	N[1] = f_cir;
+//	N[2] = f_axi;
+
+	const vec3d  X = {eVWP[3], eVWP[4], eVWP[5]};
+	const vec3d  Xcl = {0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z};		// center line
+	vec3d NX = {X.x-Xcl.x,X.y-Xcl.y,X.z-Xcl.z};								// radial vector
+
+	const double ro = sqrt(NX*NX);
+
+	NX /= ro;
 
 	// retrieve local element basis directions
 	vec3d N[3];
 
 	// pointwise, consistent with mesh generated with Matlab script <NodesElementsAsy.m>
-	N[0] = f_rad;
-	N[1] = f_cir;
-	N[2] = f_axi;
+	N[2] = {0.0, imper/100.0*rIo*hwaves*M_PI/lo*cos(hwaves*M_PI*X.z/lo), 1.0}; N[2] = N[2]/sqrt(N[2]*N[2]);		// axial = d(Xcl)/d(z)
+	N[1] = {-NX.y, NX.x, NX.z};																					// circumferential
+	N[0] = N[2]^N[1];
 
 	const double phieo = 0.34;								// 0.34 (CMAME | KNOCKOUTS) | 1.00 (TEVG) | 1.0/3.0 (TEVG)
 	const double phimo = 0.5*(1.0-phieo);
@@ -109,15 +143,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double aexp = 1.0;									// 1.0 (KNOCKOUTS | TEVG) | 0.0 (CMAME | TORTUOSITY)
 
 	const double delta = 0.0;
-
-	// compute U from polar decomposition of deformation gradient tensor
-	mat3ds U; mat3d R; F.right_polar(R,U);
-	double eigenval[3]; vec3d eigenvec[3];
-	U.eigen2(eigenval,eigenvec);
-
-	// right Cauchy-Green tensor and its inverse
-	const mat3ds C = (F.transpose() * F).sym();
-	const mat3ds Ci = C.inverse();
 
 	// Ge from spectral decomposition
 	const mat3ds Ge = 1.0/Get/Gez*dyad(N[0]) + Get*dyad(N[1]) + Gez*dyad(N[2]);
@@ -436,36 +461,53 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		css = cess + cfss + cass + cpnss;
 
-		css.zero();
 		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))
 						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss)
 						 - 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
 
-//		std::cout<<sx.tr()<<std::endl;//ok
-//		std::cout<<svo<<std::endl;//ok
-//		std::cout<<rIrIo<<std::endl;//ok
-//		std::cout<<Cratio<<std::endl;//ok
-//		std::cout<<ro<<std::endl;// NOT OK
+//		if (0 < eVWP[3] and eVWP[3] < 0.64884 and 0 < eVWP[4] and eVWP[4] < 1.0e-2 and eVWP[5] < 1.0e-2) // 3 o clock
+//		if (abs(eVWP[3] - 0.601361) < 1.0e-2 and abs(eVWP[4] - 0.238096) < 1.0e-2 and eVWP[5] < 1.0e-2) // 2 o clock
+		if(false)
+		{
+//			std::cout<<sx.tr()<<std::endl;//ok
+//			std::cout<<svo<<std::endl;//ok
+//			std::cout<<rIrIo<<std::endl;//ok
+//			std::cout<<Cratio<<std::endl;//ok
+//			std::cout<<ro<<std::endl;//ok
+//			std::cout<<Ixnrr(0, 0, 0, 1)<<std::endl;//ok?
+//			std::cout<<ro/rIo/lt<<std::endl;//ok
+//			Se;//ok
 
-//		std::cout<<"S\n";
-//		for (int i=0; i<3; i++)
-//			for (int j=0; j<3; j++)
-//				std::cout<<i<<" "<<j<<"\t"<<S(i,j)<<std::endl;
-//		std::cout<<std::endl;
+//			std::cout<<"x\t"<<" "<<"\t"<<eVWP[3]<<"\t"<<eVWP[4]<<"\t"<<eVWP[5]<<std::endl;
+//			std::cout<<std::endl;
 //
-//		std::cout<<"C\n";
-//		for (int i=0; i < 3; i++)
-//			for (int j=0; j < 3; j++)
-//				for (int k=0; k < 3; k++)
-//					for (int l=0; l < 3; l++)
-//						std::cout<<i<<" "<<j<<" "<<k<<" "<<l<<"\t"<<css(i, j, k, l)<<std::endl;
+//			std::cout<<"N\n";
+//			for (int i=0; i<3; i++)
+//				std::cout<<i<<" "<<"\t"<<N[i].x<<"\t"<<N[i].y<<"\t"<<N[i].z<<std::endl;
+//			std::cout<<std::endl;
 
-//		std::cout<<"\n"<<std::endl;
-//		std::terminate();
+			for (int i=0; i<3; i++)
+				for (int j=0; j<3; j++)
+					std::cout<<i<<" "<<j<<"\t"<<Sx(i,j)<<std::endl;
+			std::cout<<std::endl;
+
+			for (int i=0; i < 3; i++)
+				for (int j=0; j < 3; j++)
+					for (int k=0; k < 3; k++)
+						for (int l=0; l < 3; l++)
+							std::cout<<i<<" "<<j<<" "<<k<<" "<<l<<"\t"<<css(i, j, k, l)<<std::endl;
+
+			//		std::cout<<"\n"<<std::endl;
+			std::terminate();
+		}
 	}
 
 	// pull back to reference configuration
-	tens4dmm css_ref = J*css.pp(F.inverse());
+//	tens4dmm css_ref = J*css.pp(F.inverse());
+
+    // Convert spatial tangent to material tangent
+    mat3d Ui = dyad(v[0])/lam[0] + dyad(v[1])/lam[1] + dyad(v[2])/lam[2];
+    tens4dmm css_ref = css.pp(Ui)*J;
 
 	// convert to vector for FORTRAN
 	typedef double (*ten2)[3];
