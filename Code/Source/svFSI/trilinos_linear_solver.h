@@ -55,10 +55,19 @@
 #include "Epetra_FECrsGraph.h"
 #include "Epetra_FECrsMatrix.h"
 #include "Epetra_Import.h"
+#include "Epetra_SerialComm.h"
+
+#include "Galeri_Maps.h"
+#include "Galeri_CrsMatrices.h"
 
 // AztecOO includes
 #include "AztecOO.h"
 #include "AztecOO_StatusTestResNorm.h"
+
+
+// Amesos includes
+#include "Amesos.h"
+
 
 // ML includes
 #include "ml_include.h"
@@ -208,6 +217,11 @@ public:
           int &precondType);
 
   void trilinos_solve_(double *x, const double *dirW, double &resNorm,
+          double &initNorm, int &numIters, double &solverTime,
+          double &dB, bool &converged, int &lsType, double &relTol,
+          int &maxIters, int &kspace, int &precondType, bool &isFassem);
+
+  void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
           double &initNorm, int &numIters, double &solverTime,
           double &dB, bool &converged, int &lsType, double &relTol,
           int &maxIters, int &kspace, int &precondType, bool &isFassem);

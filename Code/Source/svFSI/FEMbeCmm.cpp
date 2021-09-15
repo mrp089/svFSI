@@ -82,9 +82,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //	N[1] = f_cir;
 //	N[2] = f_axi;
 
-	const vec3d  X = {eVWP[3], eVWP[4], eVWP[5]};
-	const vec3d  Xcl = {0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z};		// center line
-	vec3d NX = {X.x-Xcl.x,X.y-Xcl.y,X.z-Xcl.z};								// radial vector
+	const vec3d  X(eVWP[3], eVWP[4], eVWP[5]);
+	const vec3d  Xcl(0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z);		// center line
+	vec3d NX(X.x-Xcl.x,X.y-Xcl.y,X.z-Xcl.z);								// radial vector
 
 	const double ro = sqrt(NX*NX);
 
@@ -94,8 +94,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	vec3d N[3];
 
 	// pointwise, consistent with mesh generated with Matlab script <NodesElementsAsy.m>
-	N[2] = {0.0, imper/100.0*rIo*hwaves*M_PI/lo*cos(hwaves*M_PI*X.z/lo), 1.0}; N[2] = N[2]/sqrt(N[2]*N[2]);		// axial = d(Xcl)/d(z)
-	N[1] = {-NX.y, NX.x, NX.z};																					// circumferential
+	const vec3d n2(0.0, imper/100.0*rIo*hwaves*M_PI/lo*cos(hwaves*M_PI*X.z/lo), 1.0);
+	const vec3d n1(-NX.y, NX.x, NX.z);
+	N[2] = n2; N[2] = N[2]/sqrt(N[2]*N[2]);		// axial = d(Xcl)/d(z)
+	N[1] = n1;																					// circumferential
 	N[0] = N[2]^N[1];
 
 	const double phieo = 0.34;								// 0.34 (CMAME | KNOCKOUTS) | 1.00 (TEVG) | 1.0/3.0 (TEVG)

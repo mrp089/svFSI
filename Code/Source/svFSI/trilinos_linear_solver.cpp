@@ -470,7 +470,7 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
 
   //call solver code which assembles K and F for shared processors
   bool flagFassem = false;
-  trilinos_solve_(x, dirW, resNorm, initNorm, numIters,
+  trilinos_solve_direct_(x, dirW, resNorm, initNorm, numIters,
           solverTime, dB, converged, lsType,
           relTol, maxIters, kspace, precondType, flagFassem);
 
@@ -634,6 +634,198 @@ void trilinos_solve_(double *x, const double *dirW, double &resNorm,
       MLPrec = NULL;
   }
 } // trilinos_solve_
+
+void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
+        double &initNorm, int &numIters, double &solverTime, double &dB,
+        bool &converged, int &lsType, double &relTol, int &maxIters,
+        int &kspace, int &precondType, bool &isFassem)
+{
+  bool flagFassem = isFassem;
+
+  // Already filled from graph so does not need to call fillcomplete
+  // routine will sum in contributions from elements on shared nodes amongst
+  // processors
+  int error = Trilinos::K->GlobalAssemble(false);
+  if (error != 0)
+  {
+    std::cout << "ERROR: Global Assembling stiffness matrix" << std::endl;
+    exit(1);
+  }
+
+  //very important for performance-makes memory contiguous
+  Trilinos::K->OptimizeStorage();
+
+  flagFassem = true;
+  if (flagFassem)
+  {
+    //sum in values from shared nodes amongst the processors
+    error = Trilinos::F->GlobalAssemble();
+
+    if (error != 0)
+    {
+      std::cout << "ERROR: Global Assembling force vector" << std::endl;
+      exit(1);
+    }
+  }
+
+  // Construct Jacobi scaling vector which uses dirW to take the Dirichlet BC
+  // into account
+  Epetra_Vector diagonal(*Trilinos::blockMap);
+  constructJacobiScaling(dirW, diagonal);
+
+  // Compute norm of preconditioned multivector F that we will be solving
+  // problem with
+  Trilinos::F->Norm2(&initNorm); //pass preconditioned norm W*F
+
+  // Define Epetra_Operator which is global stiffness with coupled boundary
+  // conditions included
+  TrilinosMatVec K_bdry;
+
+  //Define linear problem if v is 0 does standard matvec product with K
+//  Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F);
+
+  Epetra_SerialComm Comm;
+  int nx = 20;                  // number of grid points in the x direction
+  int ny = 300;
+  Teuchos::ParameterList GaleriList;
+  GaleriList.set("nx", nx);
+  GaleriList.set("ny", ny);
+  GaleriList.set("mx", 1);
+  GaleriList.set("my", 1);
+
+  Epetra_Map* Map = Galeri::CreateMap("Cartesian2D", Comm, GaleriList);
+  Epetra_CrsMatrix* Matrix = Galeri::CreateCrsMatrix("Laplace2D", Map, GaleriList);
+  Epetra_MultiVector LHS(*Map, 1); LHS.PutScalar(0.0);
+  Epetra_MultiVector RHS(*Map, 1); RHS.Random();
+
+  Epetra_MultiVector * F;
+  F = dynamic_cast<Epetra_MultiVector *>(Trilinos::F);
+  Epetra_MultiVector * X;
+  X = dynamic_cast<Epetra_MultiVector *>(Trilinos::X);
+  Epetra_RowMatrix * K;
+  K = dynamic_cast<Epetra_RowMatrix *>(Trilinos::K);
+//
+//  LHS.Map().Print(std::cout);
+//  RHS.Map().Print(std::cout);
+//  Matrix->OperatorRangeMap().Print(std::cout);
+//  Matrix->OperatorDomainMap().Print(std::cout);
+//  RHS.Print(std::cout);
+//  LHS.Print(std::cout);
+//  K->Print(std::cout);
+//  Trilinos::blockMap->Print(std::cout);
+
+//  std::terminate();
+
+  Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F); // seg fault
+  Epetra_LinearProblem Problem(K, Trilinos::X, Trilinos::F); // zero result
+//  Epetra_LinearProblem Problem(K, X, F);
+//  Epetra_LinearProblem Problem(Matrix, &LHS, &RHS);
+//  Epetra_LinearProblem Problem(Trilinos::K, Trilinos::X, Trilinos::F);
+  Amesos_BaseSolver * Solver;
+  Amesos Factory;
+  Solver = Factory.Create("Klu", Problem);
+  if (Solver == 0)
+  {
+    std::cout<<"ERROR: Specified solver is not available"<<std::endl;
+    exit(1);
+  }
+  if (Solver->GetProblem()->GetOperator() == 0)
+  {
+    std::cout<<"ERROR: Linear operator malformed"<<std::endl;
+    exit(1);
+  }
+//  if (Solver->GetProblem()->CheckInput() != 0)
+//  {
+//	std::cout<<"Epetra_LinearProblem::CheckInput() non-zero: "<<Solver->GetProblem()->CheckInput()<<std::endl;
+//    exit(1);
+//  }
+
+  //Can set output solver parameter options below
+//#ifdef NOOUTPUT
+//  Solver.SetAztecOption(AZ_diagnostics, AZ_none);
+//  Solver.SetAztecOption(AZ_output, AZ_none);
+//#endif
+
+//  setPreconditioner(precondType, Solver);
+
+  // Set convergence type as relative ||r|| <= relTol||b||
+//  Solver.SetAztecOption(AZ_conv, AZ_rhs);
+
+  //Set solver options
+//  int numRestarts = 1; //also changes for gmres
+//  int maxItersPerRestart = maxIters;
+
+  //checkStatus to calculate residual norm
+//  AztecOO_StatusTestResNorm restartResNorm(K_bdry, *Trilinos::X,
+//                      (Epetra_Vector&) Trilinos::F[0], relTol);
+//  restartResNorm.DefineResForm(AztecOO_StatusTestResNorm::Implicit,
+//                 AztecOO_StatusTestResNorm::TwoNorm);
+//  Solver.SetStatusTest(&restartResNorm);
+
+//  int status;
+//  status = Solver.Iterate(maxItersPerRestart, relTol);
+//  resNorm = restartResNorm.GetResNormValue();
+//  solverTime = Solver.SolveTime();
+  Teuchos::ParameterList List;
+  List.set("PrintTiming", true);
+  List.set("PrintStatus", true);
+  Solver->SetParameters(List);
+
+  Solver->SymbolicFactorization();
+  Solver->NumericFactorization();
+  Solver->Solve();
+
+//  printMatrixToFile();
+//  printRHSToFile();
+//  printSolutionToFile();
+
+//  Trilinos::K->Print(std::cout);
+//  Trilinos::F->Print(std::cout);
+//  Trilinos::X->Print(std::cout);
+
+
+  X->Print(std::cout);
+  Solver->PrintStatus();
+  Solver->PrintTiming();
+  std::terminate();
+//  converged = (status == 0) ? true : false;
+  converged = true;
+//  dB = 10 * log(restartResNorm.GetResNormValue()/dB); //fits with gmres def
+
+  //Right scaling so need to multiply x by diagonal
+  Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
+
+  //Fill ghost X with x communicating ghost nodes amongst processors
+  error = Trilinos::ghostX->Import(*Trilinos::X, *Trilinos::Importer, Insert);
+  //check imported correctly
+  if (error != 0)
+  {
+    std::cout << "ERROR: Map ghost node importer!" << std::endl;
+     exit(1);
+  }
+
+    error = Trilinos::ghostX->ExtractCopy(x);
+   if (error != 0)
+   {
+     std::cout << "ERROR: Extracting copy of solution vector!" << std::endl;
+     exit(1);
+  }
+  //set to 0 for the next time iteration
+  Trilinos::K->PutScalar(0.0);
+  Trilinos::F->PutScalar(0.0);
+  if (coupledBC) Trilinos::bdryVec->PutScalar(0.0);
+  //0 out initial guess for iteration
+  Trilinos::X->PutScalar(0.0);
+  // Free memory if MLPrec is invoked
+  if (ifpackPrec) {
+      delete ifpackPrec;
+      ifpackPrec = NULL;
+  }
+  if (MLPrec) {
+      delete MLPrec;
+      MLPrec = NULL;
+  }
+} // trilinos_solve_direct_
 
 // ----------------------------------------------------------------------------
 void setPreconditioner(int precondType, AztecOO &Solver)
