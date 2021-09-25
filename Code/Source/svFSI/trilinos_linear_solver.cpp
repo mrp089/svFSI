@@ -698,12 +698,25 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   Epetra_MultiVector LHS(*Map, 1); LHS.PutScalar(0.0);
   Epetra_MultiVector RHS(*Map, 1); RHS.Random();
 
-  Epetra_MultiVector * F;
-  F = dynamic_cast<Epetra_MultiVector *>(Trilinos::F);
-  Epetra_MultiVector * X;
-  X = dynamic_cast<Epetra_MultiVector *>(Trilinos::X);
-  Epetra_RowMatrix * K;
-  K = dynamic_cast<Epetra_RowMatrix *>(Trilinos::K);
+//  Epetra_MultiVector * F;
+//  F = dynamic_cast<Epetra_MultiVector *>(Trilinos::F);
+//  Epetra_MultiVector * X;
+//  X = dynamic_cast<Epetra_MultiVector *>(Trilinos::X);
+//  Epetra_RowMatrix * K;
+//  K = dynamic_cast<Epetra_RowMatrix *>(Trilinos::K);
+
+  Epetra_MpiComm comm(MPI_COMM_WORLD);
+  Epetra_Map* map = new Epetra_Map(Trilinos::blockMap->NumGlobalElements(), 1, comm);
+  Epetra_MultiVector * F(*Map, 1);
+  Epetra_MultiVector * X(*Map, 1);
+  Epetra_CrsMatrix * K;
+
+  Trilinos::F
+
+//  Trilinos::blockMap = new Epetra_BlockMap(numGlobalNodes, numLocalNodes,
+//                        &localToGlobalSorted[0], dof, indexBase, comm);
+//
+
 //
 //  LHS.Map().Print(std::cout);
 //  RHS.Map().Print(std::cout);
@@ -717,7 +730,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  std::terminate();
 
   Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F); // seg fault
-  Epetra_LinearProblem Problem(K, Trilinos::X, Trilinos::F); // zero result
+//  Epetra_LinearProblem Problem(K, Trilinos::X, Trilinos::F); // zero result
 //  Epetra_LinearProblem Problem(K, X, F);
 //  Epetra_LinearProblem Problem(Matrix, &LHS, &RHS);
 //  Epetra_LinearProblem Problem(Trilinos::K, Trilinos::X, Trilinos::F);
