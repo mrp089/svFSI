@@ -684,19 +684,19 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   //Define linear problem if v is 0 does standard matvec product with K
 //  Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F);
 
-  Epetra_SerialComm Comm;
-  int nx = 20;                  // number of grid points in the x direction
-  int ny = 300;
-  Teuchos::ParameterList GaleriList;
-  GaleriList.set("nx", nx);
-  GaleriList.set("ny", ny);
-  GaleriList.set("mx", 1);
-  GaleriList.set("my", 1);
+  // Epetra_SerialComm Comm;
+  // int nx = 20;                  // number of grid points in the x direction
+  // int ny = 300;
+  // Teuchos::ParameterList GaleriList;
+  // GaleriList.set("nx", nx);
+  // GaleriList.set("ny", ny);
+  // GaleriList.set("mx", 1);
+  // GaleriList.set("my", 1);
 
-  Epetra_Map* Map = Galeri::CreateMap("Cartesian2D", Comm, GaleriList);
-  Epetra_CrsMatrix* Matrix = Galeri::CreateCrsMatrix("Laplace2D", Map, GaleriList);
-  Epetra_MultiVector LHS(*Map, 1); LHS.PutScalar(0.0);
-  Epetra_MultiVector RHS(*Map, 1); RHS.Random();
+  // Epetra_Map* Map = Galeri::CreateMap("Cartesian2D", Comm, GaleriList);
+  // Epetra_CrsMatrix* Matrix = Galeri::CreateCrsMatrix("Laplace2D", Map, GaleriList);
+  // Epetra_MultiVector LHS(*Map, 1); LHS.PutScalar(0.0);
+  // Epetra_MultiVector RHS(*Map, 1); RHS.Random();
 
 //  Epetra_MultiVector * F;
 //  F = dynamic_cast<Epetra_MultiVector *>(Trilinos::F);
@@ -706,12 +706,70 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  K = dynamic_cast<Epetra_RowMatrix *>(Trilinos::K);
 
   Epetra_MpiComm comm(MPI_COMM_WORLD);
-  Epetra_Map* map = new Epetra_Map(Trilinos::blockMap->NumGlobalElements(), 1, comm);
-  Epetra_MultiVector * F(*Map, 1);
-  Epetra_MultiVector * X(*Map, 1);
-  Epetra_CrsMatrix * K;
+  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows64(), 1, comm);
 
-  Trilinos::F
+  Epetra_MultiVector F(*map, 1);
+  Epetra_MultiVector X(*map, 1);
+  F.PutScalar(0.0);
+  F.PutScalar(0.0);
+  for (int i=0; i<Trilinos::K->NumGlobalBlockRows64(); ++i)
+  {
+    
+    F.SumIntoGlobalValue(i, 0, Trilinos::F->operator[](0)[i]);
+    X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
+    std::cout<<i<<std::endl;
+  }
+  std::terminate();
+
+  Epetra_CrsMatrix *K = new Epetra_CrsMatrix(Copy, *map, 0);
+  K->PutScalar(0.0);
+
+  std::vector<double> test(1);
+  std::vector<int> test_i(1);
+  test[0] = 1337.0;
+  test_i[0] = 37;
+  
+  K->SumIntoGlobalValues(13, 1, &test[0], &test_i[0]);
+  K->FillComplete();
+  K->Print(std::cout);
+
+  int row_offset = 0;
+  for (int i = 0; i < ghostAndLocalNodes; ++i)
+  {
+    int numEntries = nnzPerRow[i]; //block per of entries per row
+    //copy global stiffness values
+    int rowDim, numBlockEntries;
+    std::vector<int> blockIndices(numEntries);
+    std::vector<int> colDims(numEntries);
+    Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i],
+                        numEntries, rowDim, numBlockEntries, &blockIndices[0],
+                        &colDims[0]);
+
+    // std::cout<<"numEntries "<<numEntries<<std::endl;
+    // std::cout<<"rowDim "<<rowDim<<std::endl;
+    // std::cout<<"  blockIndices"<<std::endl;
+    // for (int j = 0; j < numEntries; ++j)
+    //   std::cout<<"   "<<blockIndices[j]<<std::endl;
+    // std::cout<<"  colDims"<<std::endl;
+    // for (int j = 0; j < numEntries; ++j)
+    //   std::cout<<"   "<<colDims[j]<<std::endl;
+
+    for (int j = 0; j < numEntries; ++j)
+    {
+      std::vector<double> values(rowDim*colDims[j]);
+      int sizeofValues = rowDim*colDims[j];
+      int LDA = colDims[j];
+      Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
+      for (int k = 0; k < rowDim; ++k)
+        for (int l = 0; l < colDims[j]; ++l)
+        {
+          K->SumIntoGlobalValues(row_offset + k, 1, &values[l*colDims[j] + k], &blockIndices[j] + l);
+          // std::cout<<row_offset + k<<" , "<<blockIndices[j] + l<<std::endl;
+        }
+      row_offset += rowDim;
+    }
+  }
+  // Trilinos::K->Print(std::cout);
 
 //  Trilinos::blockMap = new Epetra_BlockMap(numGlobalNodes, numLocalNodes,
 //                        &localToGlobalSorted[0], dof, indexBase, comm);
@@ -727,13 +785,14 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  K->Print(std::cout);
 //  Trilinos::blockMap->Print(std::cout);
 
-//  std::terminate();
 
-  Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F); // seg fault
+  // Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F); // seg fault
 //  Epetra_LinearProblem Problem(K, Trilinos::X, Trilinos::F); // zero result
 //  Epetra_LinearProblem Problem(K, X, F);
 //  Epetra_LinearProblem Problem(Matrix, &LHS, &RHS);
 //  Epetra_LinearProblem Problem(Trilinos::K, Trilinos::X, Trilinos::F);
+Epetra_LinearProblem Problem(K, &X, &F);
+
   Amesos_BaseSolver * Solver;
   Amesos Factory;
   Solver = Factory.Create("Klu", Problem);
@@ -747,11 +806,11 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     std::cout<<"ERROR: Linear operator malformed"<<std::endl;
     exit(1);
   }
-//  if (Solver->GetProblem()->CheckInput() != 0)
-//  {
-//	std::cout<<"Epetra_LinearProblem::CheckInput() non-zero: "<<Solver->GetProblem()->CheckInput()<<std::endl;
-//    exit(1);
-//  }
+  if (Solver->GetProblem()->CheckInput() != 0)
+  {
+    std::cout<<"Epetra_LinearProblem::CheckInput() non-zero: "<<Solver->GetProblem()->CheckInput()<<std::endl;
+    exit(1);
+  }
 
   //Can set output solver parameter options below
 //#ifdef NOOUTPUT
@@ -796,10 +855,18 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  Trilinos::F->Print(std::cout);
 //  Trilinos::X->Print(std::cout);
 
+  // K->Print(std::cout);
 
-  X->Print(std::cout);
+  // std::cout<<"F original"<<std::endl;
+  // Trilinos::F->Print(std::cout);
+  // std::cout<<"F copy"<<std::endl;
+  // F.Print(std::cout);
+
+  // X.Print(std::cout);
+
   Solver->PrintStatus();
   Solver->PrintTiming();
+
   std::terminate();
 //  converged = (status == 0) ? true : false;
   converged = true;
@@ -1197,7 +1264,9 @@ void printMatrixToFile()
         {
           Kfile << values[l*dof + k] << " ";
         }
+        Kfile << std::endl;
       }
+      Kfile << std::endl;
     }
   }
   Kfile.close();
