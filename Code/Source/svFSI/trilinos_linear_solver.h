@@ -46,6 +46,7 @@
 #include "mpi.h"
 #include <time.h>
 #include <numeric>
+#include <vector>
 
 // Epetra includes
 #include "Epetra_MpiComm.h" //include MPI communication
@@ -57,8 +58,7 @@
 #include "Epetra_Import.h"
 #include "Epetra_SerialComm.h"
 
-#include "Galeri_Maps.h"
-#include "Galeri_CrsMatrices.h"
+#include "EpetraExt_RowMatrixOut.h"
 
 // AztecOO includes
 #include "AztecOO.h"

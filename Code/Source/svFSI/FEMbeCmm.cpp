@@ -469,8 +469,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 						 - 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
 
 //		if (0 < eVWP[3] and eVWP[3] < 0.64884 and 0 < eVWP[4] and eVWP[4] < 1.0e-2 and eVWP[5] < 1.0e-2) // 3 o clock
-		if (abs(eVWP[3] - 0.601361) < 1.0e-2 and abs(eVWP[4] - 0.238096) < 1.0e-2 and eVWP[5] < 1.0e-2) // 2 o clock
-//		if(false)
+//		if (abs(eVWP[3] - 0.601361) < 1.0e-2 and abs(eVWP[4] - 0.238096) < 1.0e-2 and eVWP[5] < 1.0e-2) // 2 o clock
+		if(false)
 		{
 //			std::cout<<sx.tr()<<std::endl;//ok
 //			std::cout<<svo<<std::endl;//ok

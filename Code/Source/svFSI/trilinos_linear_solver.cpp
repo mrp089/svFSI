@@ -671,7 +671,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   // Construct Jacobi scaling vector which uses dirW to take the Dirichlet BC
   // into account
   Epetra_Vector diagonal(*Trilinos::blockMap);
-  constructJacobiScaling(dirW, diagonal);
+//  constructJacobiScaling(dirW, diagonal);
 
   // Compute norm of preconditioned multivector F that we will be solving
   // problem with
@@ -706,35 +706,40 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  K = dynamic_cast<Epetra_RowMatrix *>(Trilinos::K);
 
   Epetra_MpiComm comm(MPI_COMM_WORLD);
-  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows64(), 1, comm);
+  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows64() * 3, 0, comm);
 
   Epetra_MultiVector F(*map, 1);
   Epetra_MultiVector X(*map, 1);
   F.PutScalar(0.0);
-  F.PutScalar(0.0);
-  for (int i=0; i<Trilinos::K->NumGlobalBlockRows64(); ++i)
+  X.PutScalar(0.0);
+  for (long long i=0; i<Trilinos::K->NumGlobalBlockRows64() * 3; ++i)
   {
-    
     F.SumIntoGlobalValue(i, 0, Trilinos::F->operator[](0)[i]);
     X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
-    std::cout<<i<<std::endl;
   }
-  std::terminate();
 
-  Epetra_CrsMatrix *K = new Epetra_CrsMatrix(Copy, *map, 0);
-  K->PutScalar(0.0);
 
-  std::vector<double> test(1);
-  std::vector<int> test_i(1);
-  test[0] = 1337.0;
-  test_i[0] = 37;
-  
-  K->SumIntoGlobalValues(13, 1, &test[0], &test_i[0]);
-  K->FillComplete();
-  K->Print(std::cout);
+//	Epetra_MultiVector * F(*map, 1);
+//	F = dynamic_cast<Epetra_MultiVector *>(Trilinos::F);
+//	Epetra_MultiVector * X(*map, 1);
+//	X = dynamic_cast<Epetra_MultiVector *>(Trilinos::X);
 
-  int row_offset = 0;
-  for (int i = 0; i < ghostAndLocalNodes; ++i)
+  Epetra_CrsMatrix K(Copy, *map, 0);
+  K.PutScalar(0.0);
+
+//  std::vector<double> test;
+//  std::vector<long long> test_i;
+//  test.push_back(1337.0);
+//  test_i.push_back(37);
+//
+//  int i = 13;
+//
+//  K.InsertGlobalValues(i, test_i.size(), &test[0], &test_i[0]);
+//  K->FillComplete();
+//  K->TransformToLocal();
+
+  long long row_offset = 0;
+  for (long long i = 0; i < ghostAndLocalNodes; ++i)
   {
     int numEntries = nnzPerRow[i]; //block per of entries per row
     //copy global stiffness values
@@ -745,30 +750,38 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
                         numEntries, rowDim, numBlockEntries, &blockIndices[0],
                         &colDims[0]);
 
-    // std::cout<<"numEntries "<<numEntries<<std::endl;
-    // std::cout<<"rowDim "<<rowDim<<std::endl;
-    // std::cout<<"  blockIndices"<<std::endl;
-    // for (int j = 0; j < numEntries; ++j)
-    //   std::cout<<"   "<<blockIndices[j]<<std::endl;
-    // std::cout<<"  colDims"<<std::endl;
-    // for (int j = 0; j < numEntries; ++j)
-    //   std::cout<<"   "<<colDims[j]<<std::endl;
+//     std::cout<<"numEntries "<<numEntries<<std::endl;
+//     std::cout<<"rowDim "<<rowDim<<std::endl;
+//     std::cout<<"  blockIndices"<<std::endl;
+//     for (int j = 0; j < numEntries; ++j)
+//       std::cout<<"   "<<blockIndices[j]<<std::endl;
+//     std::cout<<"  colDims"<<std::endl;
+//     for (int j = 0; j < numEntries; ++j)
+//       std::cout<<"   "<<colDims[j]<<std::endl;
 
-    for (int j = 0; j < numEntries; ++j)
+    for (long long j = 0; j < numEntries; ++j)
     {
       std::vector<double> values(rowDim*colDims[j]);
       int sizeofValues = rowDim*colDims[j];
       int LDA = colDims[j];
       Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
-      for (int k = 0; k < rowDim; ++k)
-        for (int l = 0; l < colDims[j]; ++l)
+      for (long long k = 0; k < rowDim; ++k)
+        for (long long l = 0; l < colDims[j]; ++l)
         {
-          K->SumIntoGlobalValues(row_offset + k, 1, &values[l*colDims[j] + k], &blockIndices[j] + l);
-          // std::cout<<row_offset + k<<" , "<<blockIndices[j] + l<<std::endl;
+        	long long index = (blockIndices[j] - 1) * 3 + l;
+          K.InsertGlobalValues((localToGlobalUnsorted[i] - 1) * 3 + k, 1, &values[l*colDims[j] + k], &index);
+//           std::cout<<row_offset + k<<" , "<<index<<" "<<values[l*colDims[j] + k]<<std::endl;
         }
       row_offset += rowDim;
     }
   }
+  K.FillComplete();
+
+//  EpetraExt::RowMatrixToMatlabFile("K.mat", K);
+//  Trilinos::K->Print(std::cout);
+
+//  std::cout<<K;
+//  std::terminate();
   // Trilinos::K->Print(std::cout);
 
 //  Trilinos::blockMap = new Epetra_BlockMap(numGlobalNodes, numLocalNodes,
@@ -791,7 +804,16 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  Epetra_LinearProblem Problem(K, X, F);
 //  Epetra_LinearProblem Problem(Matrix, &LHS, &RHS);
 //  Epetra_LinearProblem Problem(Trilinos::K, Trilinos::X, Trilinos::F);
-Epetra_LinearProblem Problem(K, &X, &F);
+
+
+//  	Epetra_RowMatrix * K_pardiso(*map, 1);
+//  	K_pardiso = dynamic_cast<Epetra_RowMatrix *>(&K);
+//  	Epetra_LinearProblem Problem(K_pardiso, &X, &F);
+
+//  	std::cout<<K.NumGlobalRows()<<std::endl;
+//  	std::cout<<K_pardiso->NumGlobalRows()<<std::endl;
+
+  	Epetra_LinearProblem Problem(&K, &X, &F);
 
   Amesos_BaseSolver * Solver;
   Amesos Factory;
@@ -838,14 +860,70 @@ Epetra_LinearProblem Problem(K, &X, &F);
 //  status = Solver.Iterate(maxItersPerRestart, relTol);
 //  resNorm = restartResNorm.GetResNormValue();
 //  solverTime = Solver.SolveTime();
+
   Teuchos::ParameterList List;
   List.set("PrintTiming", true);
   List.set("PrintStatus", true);
   Solver->SetParameters(List);
 
-  Solver->SymbolicFactorization();
-  Solver->NumericFactorization();
-  Solver->Solve();
+  int err;
+
+  err = Solver->SymbolicFactorization();
+  if (err != 0)
+  {
+    std::cout<<"SymbolicFactorization non-zero: "<<err<<std::endl;
+    exit(1);
+  }
+
+  err = Solver->NumericFactorization();
+  if (err != 0)
+  {
+    std::cout<<"NumericFactorization non-zero: "<<err<<std::endl;
+    exit(1);
+  }
+
+  err = Solver->Solve();
+  if (err != 0)
+  {
+    std::cout<<"Solve non-zero: "<<err<<std::endl;
+    exit(1);
+  }
+
+  double *solution =  new double[X.MyLength()];
+  double *values = new double[3];
+  int *indices = new int[3];
+  X.ExtractCopy(solution, 0);
+  Trilinos::X->PutScalar(0.0);
+
+//  for (int i=0; i<X.MyLength()/3; ++i)
+//	  for (int j=0; j<3; ++j)
+//		  Trilinos::X->ReplaceGlobalValue(i, j, values[i]);
+//
+//  for (int i=0; i<(X.MyLength()/3); ++i)
+//  {
+////	  std::cout<<solution[i]<<std::endl;
+//	  for (int j=0; j<3; ++j)
+//	  {
+//		  indices[j] = i * 3 + j + 1;
+//		  values[j] = solution[indices[j] - 1];
+////		  std::cout<<indices[j]<<" "<<values[j]<<std::endl;
+//	  }
+////	  std::cout<<std::endl;
+////	  Trilinos::X->ReplaceGlobalValues(1, &solution[i], &indices[0]); // replaces only entry 0
+////	  Trilinos::X->ReplaceGlobalValues(0, values, indices);
+////	  Trilinos::X->SumIntoGlobalValues(3, values, indices);
+//	  Trilinos::X->SumIntoGlobalValues(3, values, indices);
+////	  Trilinos::X->ReplaceGlobalValues(0, i + 1, values, indices);
+//  }
+
+
+
+  for (int i=0; i<X.MyLength(); ++i)
+	  Trilinos::X->operator[](i) = solution[i];
+
+//   Trilinos::X->Print(std::cout);//  std::terminate();
+
+//  X.Print(std::cout);
 
 //  printMatrixToFile();
 //  printRHSToFile();
@@ -862,18 +940,15 @@ Epetra_LinearProblem Problem(K, &X, &F);
   // std::cout<<"F copy"<<std::endl;
   // F.Print(std::cout);
 
-  // X.Print(std::cout);
+//  Solver->PrintStatus();
+//  Solver->PrintTiming();
 
-  Solver->PrintStatus();
-  Solver->PrintTiming();
-
-  std::terminate();
 //  converged = (status == 0) ? true : false;
   converged = true;
 //  dB = 10 * log(restartResNorm.GetResNormValue()/dB); //fits with gmres def
 
   //Right scaling so need to multiply x by diagonal
-  Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
+//  Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
 
   //Fill ghost X with x communicating ghost nodes amongst processors
   error = Trilinos::ghostX->Import(*Trilinos::X, *Trilinos::Importer, Insert);
