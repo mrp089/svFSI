@@ -671,7 +671,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   // Construct Jacobi scaling vector which uses dirW to take the Dirichlet BC
   // into account
   Epetra_Vector diagonal(*Trilinos::blockMap);
-//  constructJacobiScaling(dirW, diagonal);
+  constructJacobiScaling(dirW, diagonal);
 
   // Compute norm of preconditioned multivector F that we will be solving
   // problem with
@@ -687,11 +687,12 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   Epetra_MpiComm comm(MPI_COMM_WORLD);
   Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * 3, 0, comm);
 
+  // copy RHS and LHS vectors into Epetra_MultiVector (without Epetra_BlockMap structure)
   Epetra_MultiVector F(*map, 1);
   Epetra_MultiVector X(*map, 1);
   F.PutScalar(0.0);
   X.PutScalar(0.0);
-  for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * 3; ++i)
+  for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
   {
     F.SumIntoGlobalValue(i, 0, Trilinos::F->operator[](0)[i]);
     X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
@@ -701,6 +702,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   K.PutScalar(0.0);
 
   int *index = new int[1];
+
   for (int i = 0; i < ghostAndLocalNodes; ++i)
   {
     int numEntries = nnzPerRow[i]; //block per of entries per row
@@ -710,17 +712,21 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     int *colDims = new int[numEntries];
     Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i], numEntries, rowDim, numBlockEntries, blockIndices, colDims);
 
+    // loop all blocks
     for (int j = 0; j < numEntries; ++j)
     {
       std::vector<double> values(rowDim*colDims[j]);
       int sizeofValues = rowDim*colDims[j];
       int LDA = colDims[j];
       Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
+
+      // loop block components and write them into K
       for (int k = 0; k < rowDim; ++k)
         for (int l = 0; l < colDims[j]; ++l)
         {
-        	index[0] = (blockIndices[j] - 1) * 3 + l;
-          K.InsertGlobalValues((localToGlobalUnsorted[i] - 1) * 3 + k, 1, &values[l*colDims[j] + k], index);
+        	// convert block indices to global indices (be careful: Trilinos::K uses fortran indexing)
+        	index[0] = (blockIndices[j] - 1) * dof + l;
+        	K.InsertGlobalValues((localToGlobalUnsorted[i] - 1) * dof + k, 1, &values[l*colDims[j] + k], index);
         }
     }
   }
@@ -800,13 +806,9 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     exit(1);
   }
 
-  double *solution =  new double[X.MyLength()];
-  double *values = new double[3];
-  int *indices = new int[3];
-  X.ExtractCopy(solution, 0);
-  Trilinos::X->PutScalar(0.0);
-
   // copy values back to block structure
+  double *solution =  new double[X.MyLength()];
+  X.ExtractCopy(solution, 0);
   for (int i=0; i<X.MyLength(); ++i)
 	  Trilinos::X->operator[](i) = solution[i];
 
@@ -818,7 +820,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  dB = 10 * log(restartResNorm.GetResNormValue()/dB); //fits with gmres def
 
   //Right scaling so need to multiply x by diagonal
-//  Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
+  Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
 
   //Fill ghost X with x communicating ghost nodes amongst processors
   error = Trilinos::ghostX->Import(*Trilinos::X, *Trilinos::Importer, Insert);
