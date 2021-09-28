@@ -681,9 +681,8 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   // conditions included
   TrilinosMatVec K_bdry;
 
-  //Define linear problem if v is 0 does standard matvec product with K
-//  Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F);
-
+  // define a new map (without block structure in Trilinos::blockMap)
+  // Amesos does not support Epetra_CbrMatrix systems
   Epetra_MpiComm comm(MPI_COMM_WORLD);
   Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * 3, 0, comm);
 
@@ -698,11 +697,10 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
   }
 
+  // copy values from Trilinos::K (Epetra_BlockMap structure) to K (Epetra_Map structure)
   Epetra_CrsMatrix K(Copy, *map, 0);
   K.PutScalar(0.0);
-
   int *index = new int[1];
-
   for (int i = 0; i < ghostAndLocalNodes; ++i)
   {
     int numEntries = nnzPerRow[i]; //block per of entries per row
@@ -733,7 +731,6 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   K.FillComplete();
 
   Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
-
   Amesos_BaseSolver * Solver;
   Amesos Factory;
   Solver = Factory.Create("Pardiso", Problem);
@@ -752,53 +749,18 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     std::cout<<"Epetra_LinearProblem::CheckInput() non-zero: "<<Solver->GetProblem()->CheckInput()<<std::endl;
     exit(1);
   }
-
-  //Can set output solver parameter options below
-//#ifdef NOOUTPUT
-//  Solver.SetAztecOption(AZ_diagnostics, AZ_none);
-//  Solver.SetAztecOption(AZ_output, AZ_none);
-//#endif
-
-//  setPreconditioner(precondType, Solver);
-
-  // Set convergence type as relative ||r|| <= relTol||b||
-//  Solver.SetAztecOption(AZ_conv, AZ_rhs);
-
-  //Set solver options
-//  int numRestarts = 1; //also changes for gmres
-//  int maxItersPerRestart = maxIters;
-
-  //checkStatus to calculate residual norm
-//  AztecOO_StatusTestResNorm restartResNorm(K_bdry, *Trilinos::X,
-//                      (Epetra_Vector&) Trilinos::F[0], relTol);
-//  restartResNorm.DefineResForm(AztecOO_StatusTestResNorm::Implicit,
-//                 AztecOO_StatusTestResNorm::TwoNorm);
-//  Solver.SetStatusTest(&restartResNorm);
-
-//  int status;
-//  status = Solver.Iterate(maxItersPerRestart, relTol);
-//  resNorm = restartResNorm.GetResNormValue();
-//  solverTime = Solver.SolveTime();
-
-  Teuchos::ParameterList List;
-  List.set("PrintTiming", true);
-  List.set("PrintStatus", true);
-  Solver->SetParameters(List);
-
   error = Solver->SymbolicFactorization();
   if (error != 0)
   {
     std::cout<<"SymbolicFactorization non-zero: "<<error<<std::endl;
     exit(1);
   }
-
   error = Solver->NumericFactorization();
   if (error != 0)
   {
     std::cout<<"NumericFactorization non-zero: "<<error<<std::endl;
     exit(1);
   }
-
   error = Solver->Solve();
   if (error != 0)
   {
@@ -812,12 +774,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   for (int i=0; i<X.MyLength(); ++i)
 	  Trilinos::X->operator[](i) = solution[i];
 
-//  Solver->PrintStatus();
-//  Solver->PrintTiming();
-
-//  converged = (status == 0) ? true : false;
   converged = true;
-//  dB = 10 * log(restartResNorm.GetResNormValue()/dB); //fits with gmres def
 
   //Right scaling so need to multiply x by diagonal
   Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
