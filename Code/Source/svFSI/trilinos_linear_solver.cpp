@@ -684,27 +684,6 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   //Define linear problem if v is 0 does standard matvec product with K
 //  Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F);
 
-  // Epetra_SerialComm Comm;
-  // int nx = 20;                  // number of grid points in the x direction
-  // int ny = 300;
-  // Teuchos::ParameterList GaleriList;
-  // GaleriList.set("nx", nx);
-  // GaleriList.set("ny", ny);
-  // GaleriList.set("mx", 1);
-  // GaleriList.set("my", 1);
-
-  // Epetra_Map* Map = Galeri::CreateMap("Cartesian2D", Comm, GaleriList);
-  // Epetra_CrsMatrix* Matrix = Galeri::CreateCrsMatrix("Laplace2D", Map, GaleriList);
-  // Epetra_MultiVector LHS(*Map, 1); LHS.PutScalar(0.0);
-  // Epetra_MultiVector RHS(*Map, 1); RHS.Random();
-
-//  Epetra_MultiVector * F;
-//  F = dynamic_cast<Epetra_MultiVector *>(Trilinos::F);
-//  Epetra_MultiVector * X;
-//  X = dynamic_cast<Epetra_MultiVector *>(Trilinos::X);
-//  Epetra_RowMatrix * K;
-//  K = dynamic_cast<Epetra_RowMatrix *>(Trilinos::K);
-
   Epetra_MpiComm comm(MPI_COMM_WORLD);
   Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * 3, 0, comm);
 
@@ -718,25 +697,8 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
   }
 
-
-//	Epetra_MultiVector * F(*map, 1);
-//	F = dynamic_cast<Epetra_MultiVector *>(Trilinos::F);
-//	Epetra_MultiVector * X(*map, 1);
-//	X = dynamic_cast<Epetra_MultiVector *>(Trilinos::X);
-
   Epetra_CrsMatrix K(Copy, *map, 0);
   K.PutScalar(0.0);
-
-//  std::vector<double> test;
-//  std::vector<long long> test_i;
-//  test.push_back(1337.0);
-//  test_i.push_back(37);
-//
-//  int i = 13;
-//
-//  K.InsertGlobalValues(i, test_i.size(), &test[0], &test_i[0]);
-//  K->FillComplete();
-//  K->TransformToLocal();
 
   int *index = new int[1];
   for (int i = 0; i < ghostAndLocalNodes; ++i)
@@ -746,18 +708,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     int rowDim, numBlockEntries;
     int *blockIndices = new int[numEntries];
     int *colDims = new int[numEntries];
-    Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i],
-                        numEntries, rowDim, numBlockEntries, blockIndices,
-                        colDims);
-
-//     std::cout<<"numEntries "<<numEntries<<std::endl;
-//     std::cout<<"rowDim "<<rowDim<<std::endl;
-//     std::cout<<"  blockIndices"<<std::endl;
-//     for (int j = 0; j < numEntries; ++j)
-//       std::cout<<"   "<<blockIndices[j]<<std::endl;
-//     std::cout<<"  colDims"<<std::endl;
-//     for (int j = 0; j < numEntries; ++j)
-//       std::cout<<"   "<<colDims[j]<<std::endl;
+    Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i], numEntries, rowDim, numBlockEntries, blockIndices, colDims);
 
     for (int j = 0; j < numEntries; ++j)
     {
@@ -768,43 +719,14 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
       for (int k = 0; k < rowDim; ++k)
         for (int l = 0; l < colDims[j]; ++l)
         {
-        	  index[0] = (blockIndices[j] - 1) * 3 + l;
+        	index[0] = (blockIndices[j] - 1) * 3 + l;
           K.InsertGlobalValues((localToGlobalUnsorted[i] - 1) * 3 + k, 1, &values[l*colDims[j] + k], index);
-//           std::cout<<row_offset + k<<" , "<<index<<" "<<values[l*colDims[j] + k]<<std::endl;
         }
     }
   }
   K.FillComplete();
 
-//  EpetraExt::RowMatrixToMatlabFile("K.mat", K);
-//  Trilinos::K->Print(std::cout);
-
-//  std::cout<<K;
-//  std::terminate();
-  // Trilinos::K->Print(std::cout);
-
-//  Trilinos::blockMap = new Epetra_BlockMap(numGlobalNodes, numLocalNodes,
-//                        &localToGlobalSorted[0], dof, indexBase, comm);
-//
-
-//
-//  LHS.Map().Print(std::cout);
-//  RHS.Map().Print(std::cout);
-//  Matrix->OperatorRangeMap().Print(std::cout);
-//  Matrix->OperatorDomainMap().Print(std::cout);
-//  RHS.Print(std::cout);
-//  LHS.Print(std::cout);
-//  K->Print(std::cout);
-//  Trilinos::blockMap->Print(std::cout);
-
-
-  // Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F); // seg fault
-//  Epetra_LinearProblem Problem(K, Trilinos::X, Trilinos::F); // zero result
-//  Epetra_LinearProblem Problem(K, X, F);
-//  Epetra_LinearProblem Problem(Matrix, &LHS, &RHS);
-//  Epetra_LinearProblem Problem(Trilinos::K, Trilinos::X, Trilinos::F);
-
-  	Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
+  Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
 
   Amesos_BaseSolver * Solver;
   Amesos Factory;
@@ -884,50 +806,9 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   X.ExtractCopy(solution, 0);
   Trilinos::X->PutScalar(0.0);
 
-//  for (int i=0; i<X.MyLength()/3; ++i)
-//	  for (int j=0; j<3; ++j)
-//		  Trilinos::X->ReplaceGlobalValue(i, j, values[i]);
-//
-//  for (int i=0; i<(X.MyLength()/3); ++i)
-//  {
-////	  std::cout<<solution[i]<<std::endl;
-//	  for (int j=0; j<3; ++j)
-//	  {
-//		  indices[j] = i * 3 + j + 1;
-//		  values[j] = solution[indices[j] - 1];
-////		  std::cout<<indices[j]<<" "<<values[j]<<std::endl;
-//	  }
-////	  std::cout<<std::endl;
-////	  Trilinos::X->ReplaceGlobalValues(1, &solution[i], &indices[0]); // replaces only entry 0
-////	  Trilinos::X->ReplaceGlobalValues(0, values, indices);
-////	  Trilinos::X->SumIntoGlobalValues(3, values, indices);
-//	  Trilinos::X->SumIntoGlobalValues(3, values, indices);
-////	  Trilinos::X->ReplaceGlobalValues(0, i + 1, values, indices);
-//  }
-
-
-
+  // copy values back to block structure
   for (int i=0; i<X.MyLength(); ++i)
 	  Trilinos::X->operator[](i) = solution[i];
-
-//   Trilinos::X->Print(std::cout);//  std::terminate();
-
-//  X.Print(std::cout);
-
-//  printMatrixToFile();
-//  printRHSToFile();
-//  printSolutionToFile();
-
-//  Trilinos::K->Print(std::cout);
-//  Trilinos::F->Print(std::cout);
-//  Trilinos::X->Print(std::cout);
-
-  // K->Print(std::cout);
-
-  // std::cout<<"F original"<<std::endl;
-  // Trilinos::F->Print(std::cout);
-  // std::cout<<"F copy"<<std::endl;
-  // F.Print(std::cout);
 
 //  Solver->PrintStatus();
 //  Solver->PrintTiming();
