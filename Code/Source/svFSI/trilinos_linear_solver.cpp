@@ -706,13 +706,13 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  K = dynamic_cast<Epetra_RowMatrix *>(Trilinos::K);
 
   Epetra_MpiComm comm(MPI_COMM_WORLD);
-  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows64() * 3, 0, comm);
+  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * 3, 0, comm);
 
   Epetra_MultiVector F(*map, 1);
   Epetra_MultiVector X(*map, 1);
   F.PutScalar(0.0);
   X.PutScalar(0.0);
-  for (long long i=0; i<Trilinos::K->NumGlobalBlockRows64() * 3; ++i)
+  for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * 3; ++i)
   {
     F.SumIntoGlobalValue(i, 0, Trilinos::F->operator[](0)[i]);
     X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
@@ -738,17 +738,17 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  K->FillComplete();
 //  K->TransformToLocal();
 
-  long long row_offset = 0;
-  for (long long i = 0; i < ghostAndLocalNodes; ++i)
+  int *index = new int[1];
+  for (int i = 0; i < ghostAndLocalNodes; ++i)
   {
     int numEntries = nnzPerRow[i]; //block per of entries per row
     //copy global stiffness values
     int rowDim, numBlockEntries;
-    std::vector<int> blockIndices(numEntries);
-    std::vector<int> colDims(numEntries);
+    int *blockIndices = new int[numEntries];
+    int *colDims = new int[numEntries];
     Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i],
-                        numEntries, rowDim, numBlockEntries, &blockIndices[0],
-                        &colDims[0]);
+                        numEntries, rowDim, numBlockEntries, blockIndices,
+                        colDims);
 
 //     std::cout<<"numEntries "<<numEntries<<std::endl;
 //     std::cout<<"rowDim "<<rowDim<<std::endl;
@@ -759,20 +759,19 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //     for (int j = 0; j < numEntries; ++j)
 //       std::cout<<"   "<<colDims[j]<<std::endl;
 
-    for (long long j = 0; j < numEntries; ++j)
+    for (int j = 0; j < numEntries; ++j)
     {
       std::vector<double> values(rowDim*colDims[j]);
       int sizeofValues = rowDim*colDims[j];
       int LDA = colDims[j];
       Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
-      for (long long k = 0; k < rowDim; ++k)
-        for (long long l = 0; l < colDims[j]; ++l)
+      for (int k = 0; k < rowDim; ++k)
+        for (int l = 0; l < colDims[j]; ++l)
         {
-        	long long index = (blockIndices[j] - 1) * 3 + l;
-          K.InsertGlobalValues((localToGlobalUnsorted[i] - 1) * 3 + k, 1, &values[l*colDims[j] + k], &index);
+        	  index[0] = (blockIndices[j] - 1) * 3 + l;
+          K.InsertGlobalValues((localToGlobalUnsorted[i] - 1) * 3 + k, 1, &values[l*colDims[j] + k], index);
 //           std::cout<<row_offset + k<<" , "<<index<<" "<<values[l*colDims[j] + k]<<std::endl;
         }
-      row_offset += rowDim;
     }
   }
   K.FillComplete();
@@ -805,19 +804,11 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 //  Epetra_LinearProblem Problem(Matrix, &LHS, &RHS);
 //  Epetra_LinearProblem Problem(Trilinos::K, Trilinos::X, Trilinos::F);
 
-
-//  	Epetra_RowMatrix * K_pardiso(*map, 1);
-//  	K_pardiso = dynamic_cast<Epetra_RowMatrix *>(&K);
-//  	Epetra_LinearProblem Problem(K_pardiso, &X, &F);
-
-//  	std::cout<<K.NumGlobalRows()<<std::endl;
-//  	std::cout<<K_pardiso->NumGlobalRows()<<std::endl;
-
-  	Epetra_LinearProblem Problem(&K, &X, &F);
+  	Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
 
   Amesos_BaseSolver * Solver;
   Amesos Factory;
-  Solver = Factory.Create("Klu", Problem);
+  Solver = Factory.Create("Pardiso", Problem);
   if (Solver == 0)
   {
     std::cout<<"ERROR: Specified solver is not available"<<std::endl;
@@ -866,26 +857,24 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   List.set("PrintStatus", true);
   Solver->SetParameters(List);
 
-  int err;
-
-  err = Solver->SymbolicFactorization();
-  if (err != 0)
+  error = Solver->SymbolicFactorization();
+  if (error != 0)
   {
-    std::cout<<"SymbolicFactorization non-zero: "<<err<<std::endl;
+    std::cout<<"SymbolicFactorization non-zero: "<<error<<std::endl;
     exit(1);
   }
 
-  err = Solver->NumericFactorization();
-  if (err != 0)
+  error = Solver->NumericFactorization();
+  if (error != 0)
   {
-    std::cout<<"NumericFactorization non-zero: "<<err<<std::endl;
+    std::cout<<"NumericFactorization non-zero: "<<error<<std::endl;
     exit(1);
   }
 
-  err = Solver->Solve();
-  if (err != 0)
+  error = Solver->Solve();
+  if (error != 0)
   {
-    std::cout<<"Solve non-zero: "<<err<<std::endl;
+    std::cout<<"Solve non-zero: "<<error<<std::endl;
     exit(1);
   }
 
