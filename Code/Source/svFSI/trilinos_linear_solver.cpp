@@ -671,7 +671,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   // Construct Jacobi scaling vector which uses dirW to take the Dirichlet BC
   // into account
   Epetra_Vector diagonal(*Trilinos::blockMap);
-  constructJacobiScaling(dirW, diagonal);
+//  constructJacobiScaling(dirW, diagonal);
 
   // Compute norm of preconditioned multivector F that we will be solving
   // problem with
@@ -684,23 +684,47 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   // define a new map (without block structure in Trilinos::blockMap)
   // Amesos does not support Epetra_CbrMatrix systems
   Epetra_MpiComm comm(MPI_COMM_WORLD);
-  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * 3, 0, comm);
+  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * dof, 0, comm);
+
+  // dirty evil hack: manually set DBCs on nodes
+  // todo: enable setting DBCs on individual nodes
+  double dirW_mod[Trilinos::K->NumGlobalBlockRows() * dof];
+  for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
+	  dirW_mod[i] = dirW[i];
+  int x_zero[4] = {50, 150, 1050, 1150};
+  int y_zero[4] = { 0, 100, 1000, 1100};
+  for (int i=0; i<4; ++i)
+  {
+	  dirW_mod[x_zero[i] * dof]     = 0.0;
+	  dirW_mod[y_zero[i] * dof + 1] = 0.0;
+  }
 
   // copy RHS and LHS vectors into Epetra_MultiVector (without Epetra_BlockMap structure)
+  // todo: parallelize
+  // todo: remove x? should be zero anyways
   Epetra_MultiVector F(*map, 1);
   Epetra_MultiVector X(*map, 1);
   F.PutScalar(0.0);
   X.PutScalar(0.0);
+  double val;
   for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
   {
-    F.SumIntoGlobalValue(i, 0, Trilinos::F->operator[](0)[i]);
     X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
+
+    //check for DBCs
+    if (dirW_mod[i] < 0.5)
+    	val = 0.0;
+    else
+    	val = Trilinos::F->operator[](0)[i];
+    F.SumIntoGlobalValue(i, 0, val);
   }
 
   // copy values from Trilinos::K (Epetra_BlockMap structure) to K (Epetra_Map structure)
+  // todo: parallelize
   Epetra_CrsMatrix K(Copy, *map, 0);
   K.PutScalar(0.0);
-  int *index = new int[1];
+  int *col = new int[1];
+  bool is_dbc;
   for (int i = 0; i < ghostAndLocalNodes; ++i)
   {
     int numEntries = nnzPerRow[i]; //block per of entries per row
@@ -710,7 +734,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     int *colDims = new int[numEntries];
     Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i], numEntries, rowDim, numBlockEntries, blockIndices, colDims);
 
-    // loop all blocks
+    // loop blocks
     for (int j = 0; j < numEntries; ++j)
     {
       std::vector<double> values(rowDim*colDims[j]);
@@ -719,21 +743,49 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
       Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
 
       // loop block components and write them into K
+  	  // convert block indices to global indices (be careful: Trilinos::K uses fortran indexing)
+
+      // loop row
       for (int k = 0; k < rowDim; ++k)
+      {
+    	// global row index
+	    int row = (localToGlobalUnsorted[i] - 1) * dof + k;
+
+	    //check for DBCs
+	    if (dirW_mod[row] < 0.5)
+	    	is_dbc = true;
+	    else
+	    	is_dbc = false;
+
+	    // loop col
         for (int l = 0; l < colDims[j]; ++l)
         {
-        	// convert block indices to global indices (be careful: Trilinos::K uses fortran indexing)
-        	index[0] = (blockIndices[j] - 1) * dof + l;
-        	K.InsertGlobalValues((localToGlobalUnsorted[i] - 1) * dof + k, 1, &values[l*colDims[j] + k], index);
+        	// global col index
+        	col[0] = (blockIndices[j] - 1) * dof + l;
+
+        	// if DBC: one on diagonal, zero in the rest of the row
+        	if (is_dbc)
+        		if (row == col[0])
+        			val = 1.0;
+        		else
+        			continue;
+        	else
+        		val = values[l*colDims[j] + k];
+        	K.InsertGlobalValues(row, 1, &val, col);
         }
+      }
     }
   }
   K.FillComplete();
 
+//  F.Print(std::cout);
+  EpetraExt::RowMatrixToMatlabFile("K.mat", *((Epetra_RowMatrix *) &K));
+//  std::terminate();
+
   Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
   Amesos_BaseSolver * Solver;
   Amesos Factory;
-  Solver = Factory.Create("Pardiso", Problem);
+  Solver = Factory.Create("Klu", Problem);
   if (Solver == 0)
   {
     std::cout<<"ERROR: Specified solver is not available"<<std::endl;
@@ -777,7 +829,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   converged = true;
 
   //Right scaling so need to multiply x by diagonal
-  Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
+//  Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
 
   //Fill ghost X with x communicating ghost nodes amongst processors
   error = Trilinos::ghostX->Import(*Trilinos::X, *Trilinos::Importer, Insert);
@@ -800,15 +852,8 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   if (coupledBC) Trilinos::bdryVec->PutScalar(0.0);
   //0 out initial guess for iteration
   Trilinos::X->PutScalar(0.0);
-  // Free memory if MLPrec is invoked
-  if (ifpackPrec) {
-      delete ifpackPrec;
-      ifpackPrec = NULL;
-  }
-  if (MLPrec) {
-      delete MLPrec;
-      MLPrec = NULL;
-  }
+
+  // todo: free memory
 } // trilinos_solve_direct_
 
 // ----------------------------------------------------------------------------

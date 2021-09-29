@@ -89,6 +89,7 @@
 #define TRILINOS_CG_SOLVER 798
 #define TRILINOS_GMRES_SOLVER 797
 #define TRILINOS_BICGSTAB_SOLVER 795
+// todo: add direct solvers
 
 // Define preconditioners as following naming in FSILS_struct
 #define NO_PRECONDITIONER 700
