@@ -668,19 +668,6 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     }
   }
 
-  // Construct Jacobi scaling vector which uses dirW to take the Dirichlet BC
-  // into account
-  Epetra_Vector diagonal(*Trilinos::blockMap);
-//  constructJacobiScaling(dirW, diagonal);
-
-  // Compute norm of preconditioned multivector F that we will be solving
-  // problem with
-  Trilinos::F->Norm2(&initNorm); //pass preconditioned norm W*F
-
-  // Define Epetra_Operator which is global stiffness with coupled boundary
-  // conditions included
-  TrilinosMatVec K_bdry;
-
   // define a new map (without block structure in Trilinos::blockMap)
   // Amesos does not support Epetra_CbrMatrix systems
   Epetra_MpiComm comm(MPI_COMM_WORLD);
@@ -778,9 +765,9 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   }
   K.FillComplete();
 
-//  F.Print(std::cout);
-  EpetraExt::RowMatrixToMatlabFile("K.mat", *((Epetra_RowMatrix *) &K));
-//  std::terminate();
+  // Compute norm of preconditioned multivector F that we will be solving
+  // problem with
+  F.Norm2(&initNorm);
 
   Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
   Amesos_BaseSolver * Solver;
@@ -820,16 +807,22 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     exit(1);
   }
 
+  // get solve time
+  Teuchos::ParameterList TimingsList;
+  Solver->GetTiming(TimingsList);
+  solverTime = Teuchos::getParameter<double> (TimingsList, "Total solve time");
+
+  // set dummy outputs for iterative solvers
+  converged = true;
+  numIters = 1;
+  resNorm = 0.0;
+  dB = 0.0;
+
   // copy values back to block structure
   double *solution =  new double[X.MyLength()];
   X.ExtractCopy(solution, 0);
   for (int i=0; i<X.MyLength(); ++i)
 	  Trilinos::X->operator[](i) = solution[i];
-
-  converged = true;
-
-  //Right scaling so need to multiply x by diagonal
-//  Trilinos::X->Multiply(1.0, *Trilinos::X, diagonal, 0.0);
 
   //Fill ghost X with x communicating ghost nodes amongst processors
   error = Trilinos::ghostX->Import(*Trilinos::X, *Trilinos::Importer, Insert);
