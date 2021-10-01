@@ -673,103 +673,20 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   Epetra_MpiComm comm(MPI_COMM_WORLD);
   Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * dof, 0, comm);
 
-  // dirty evil hack: manually set DBCs on nodes
-  // todo: enable setting DBCs on individual nodes
-  double dirW_mod[Trilinos::K->NumGlobalBlockRows() * dof];
-  for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
-	  dirW_mod[i] = dirW[i];
-  int x_zero[4] = {50, 150, 1050, 1150};
-  int y_zero[4] = { 0, 100, 1000, 1100};
-  for (int i=0; i<4; ++i)
-  {
-	  dirW_mod[x_zero[i] * dof]     = 0.0;
-	  dirW_mod[y_zero[i] * dof + 1] = 0.0;
-  }
-
-  // copy RHS and LHS vectors into Epetra_MultiVector (without Epetra_BlockMap structure)
-  // todo: parallelize
-  // todo: remove x? should be zero anyways
-  Epetra_MultiVector F(*map, 1);
-  Epetra_MultiVector X(*map, 1);
-  F.PutScalar(0.0);
-  X.PutScalar(0.0);
-  double val;
-  for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
-  {
-    X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
-
-    //check for DBCs
-    if (dirW_mod[i] < 0.5)
-    	val = 0.0;
-    else
-    	val = Trilinos::F->operator[](0)[i];
-    F.SumIntoGlobalValue(i, 0, val);
-  }
-
-  // copy values from Trilinos::K (Epetra_BlockMap structure) to K (Epetra_Map structure)
-  // todo: parallelize
+  Epetra_Vector F(*map);
+  Epetra_Vector X(*map);
   Epetra_CrsMatrix K(Copy, *map, 0);
-  K.PutScalar(0.0);
-  int *col = new int[1];
-  bool is_dbc;
-  for (int i = 0; i < ghostAndLocalNodes; ++i)
-  {
-    int numEntries = nnzPerRow[i]; //block per of entries per row
-    //copy global stiffness values
-    int rowDim, numBlockEntries;
-    int *blockIndices = new int[numEntries];
-    int *colDims = new int[numEntries];
-    Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i], numEntries, rowDim, numBlockEntries, blockIndices, colDims);
 
-    // loop blocks
-    for (int j = 0; j < numEntries; ++j)
-    {
-      std::vector<double> values(rowDim*colDims[j]);
-      int sizeofValues = rowDim*colDims[j];
-      int LDA = colDims[j];
-      Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
+  // apply Dirichlet boundary conditions
+  applyDirichlet(dirW, K, F, X);
 
-      // loop block components and write them into K
-  	  // convert block indices to global indices (be careful: Trilinos::K uses fortran indexing)
-
-      // loop row
-      for (int k = 0; k < rowDim; ++k)
-      {
-    	// global row index
-	    int row = (localToGlobalUnsorted[i] - 1) * dof + k;
-
-	    //check for DBCs
-	    if (dirW_mod[row] < 0.5)
-	    	is_dbc = true;
-	    else
-	    	is_dbc = false;
-
-	    // loop col
-        for (int l = 0; l < colDims[j]; ++l)
-        {
-        	// global col index
-        	col[0] = (blockIndices[j] - 1) * dof + l;
-
-        	// if DBC: one on diagonal, zero in the rest of the row
-        	if (is_dbc)
-        		if (row == col[0])
-        			val = 1.0;
-        		else
-        			continue;
-        	else
-        		val = values[l*colDims[j] + k];
-        	K.InsertGlobalValues(row, 1, &val, col);
-        }
-      }
-    }
-  }
-  K.FillComplete();
+  // set up linear problem
+  Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
 
   // Compute norm of preconditioned multivector F that we will be solving
   // problem with
   F.Norm2(&initNorm);
 
-  Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
   Amesos_BaseSolver * Solver;
   Amesos Factory;
   Solver = Factory.Create("Klu", Problem);
@@ -812,7 +729,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   Solver->GetTiming(TimingsList);
   solverTime = Teuchos::getParameter<double> (TimingsList, "Total solve time");
 
-  // set dummy outputs for iterative solvers
+  // set dummy iterative solver outputs
   converged = true;
   numIters = 1;
   resNorm = 0.0;
@@ -1036,6 +953,97 @@ void checkDiagonalIsZero()
   }
   if (isZeroDiag) Trilinos::K->ReplaceDiagonalValues(diagonal);
 } // void checkDiagonalIsZero()
+
+void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, Epetra_Vector &X)
+{
+	// dirty evil hack: manually set DBCs on nodes
+	// todo: enable setting DBCs on individual nodes
+	double dirW_mod[Trilinos::K->NumGlobalBlockRows() * dof];
+	for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
+		dirW_mod[i] = dirW[i];
+	int x_zero[4] = {50, 150, 1050, 1150};
+	int y_zero[4] = { 0, 100, 1000, 1100};
+	for (int i=0; i<4; ++i)
+	{
+		dirW_mod[x_zero[i] * dof]     = 0.0;
+		dirW_mod[y_zero[i] * dof + 1] = 0.0;
+	}
+
+	// copy RHS and LHS vectors into Epetra_MultiVector (without Epetra_BlockMap structure)
+	// todo: parallelize
+	F.PutScalar(0.0);
+	X.PutScalar(0.0);
+	double val;
+	for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
+	{
+		X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
+
+		//check for DBCs
+		if (dirW_mod[i] < 0.5)
+			val = 0.0;
+		else
+			val = Trilinos::F->operator[](0)[i];
+		F.SumIntoGlobalValue(i, 0, val);
+	}
+
+	// copy values from Trilinos::K (Epetra_BlockMap structure) to K (Epetra_Map structure)
+	// todo: parallelize
+	K.PutScalar(0.0);
+	int *col = new int[1];
+	bool is_dbc;
+	for (int i = 0; i < ghostAndLocalNodes; ++i)
+	{
+		int numEntries = nnzPerRow[i]; //block per of entries per row
+		//copy global stiffness values
+		int rowDim, numBlockEntries;
+		int *blockIndices = new int[numEntries];
+		int *colDims = new int[numEntries];
+		Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i], numEntries, rowDim, numBlockEntries, blockIndices, colDims);
+
+		// loop blocks
+		for (int j = 0; j < numEntries; ++j)
+		{
+			std::vector<double> values(rowDim*colDims[j]);
+			int sizeofValues = rowDim*colDims[j];
+			int LDA = colDims[j];
+			Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
+
+			// loop block components and write them into K
+			// convert block indices to global indices (be careful: Trilinos::K uses fortran indexing)
+
+			// loop row
+			for (int k = 0; k < rowDim; ++k)
+			{
+				// global row index
+				int row = (localToGlobalUnsorted[i] - 1) * dof + k;
+
+				//check for DBCs
+				if (dirW_mod[row] < 0.5)
+					is_dbc = true;
+				else
+					is_dbc = false;
+
+				// loop col
+				for (int l = 0; l < colDims[j]; ++l)
+				{
+					// global col index
+					col[0] = (blockIndices[j] - 1) * dof + l;
+
+					// if DBC: one on diagonal, zero in the rest of the row
+					if (is_dbc)
+						if (row == col[0])
+							val = 1.0;
+						else
+							continue;
+					else
+						val = values[l*colDims[j] + k];
+					K.InsertGlobalValues(row, 1, &val, col);
+				}
+			}
+		}
+	}
+	K.FillComplete();
+}
 
 // ----------------------------------------------------------------------------
 /**

@@ -242,6 +242,8 @@ void setIFPACKPrec(AztecOO &Solver);
 
 void checkDiagonalIsZero();
 
+void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, Epetra_Vector &X);
+
 void constructJacobiScaling(const double *dirW,
               Epetra_Vector &diagonal);
 
