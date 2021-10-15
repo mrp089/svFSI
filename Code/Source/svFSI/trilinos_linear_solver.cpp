@@ -956,18 +956,6 @@ void checkDiagonalIsZero()
 
 void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, Epetra_Vector &X)
 {
-	// dirty evil hack: manually set DBCs on nodes
-	// todo: enable setting DBCs on individual nodes
-	double dirW_mod[Trilinos::K->NumGlobalBlockRows() * dof];
-	for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
-		dirW_mod[i] = dirW[i];
-	int x_zero[4] = {50, 150, 1050, 1150};
-	int y_zero[4] = { 0, 100, 1000, 1100};
-	for (int i=0; i<4; ++i)
-	{
-		dirW_mod[x_zero[i] * dof]     = 0.0;
-		dirW_mod[y_zero[i] * dof + 1] = 0.0;
-	}
 
 	// copy RHS and LHS vectors into Epetra_MultiVector (without Epetra_BlockMap structure)
 	// todo: parallelize
@@ -979,7 +967,7 @@ void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, E
 		X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
 
 		//check for DBCs
-		if (dirW_mod[i] < 0.5)
+		if (dirW[i] < 0.5)
 			val = 0.0;
 		else
 			val = Trilinos::F->operator[](0)[i];
@@ -1018,7 +1006,7 @@ void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, E
 				int row = (localToGlobalUnsorted[i] - 1) * dof + k;
 
 				//check for DBCs
-				if (dirW_mod[row] < 0.5)
+				if (dirW[row] < 0.5)
 					is_dbc = true;
 				else
 					is_dbc = false;
