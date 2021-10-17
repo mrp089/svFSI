@@ -38,7 +38,7 @@
 
 !     Compute 2nd Piola-Kirchhoff stress and material stiffness tensors
 !     including both dilational and isochoric components
-      SUBROUTINE GETPK2CC(lDmn, F, nfd, fl, ya, S, Dm)
+      SUBROUTINE GETPK2CC(lDmn, F, nfd, fl, ya, grInt, S, Dm, eVWP)
       USE MATFUN
       USE COMMOD
       IMPLICIT NONE
@@ -46,6 +46,8 @@
       INTEGER(KIND=IKIND), INTENT(IN) :: nfd
       REAL(KIND=RKIND), INTENT(IN) :: F(nsd,nsd), fl(nsd,nfd), ya
       REAL(KIND=RKIND), INTENT(OUT) :: S(nsd,nsd), Dm(nsymd,nsymd)
+      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(24)
+      REAL(KIND=RKIND), INTENT(IN), OPTIONAL :: eVWP(nvwp)
 
       TYPE(stModelType) :: stM
       REAL(KIND=RKIND) :: nd, Kp, J, J2d, J4d, trE, p, pl, Inv1, Inv2,
@@ -60,6 +62,10 @@
      4   Hss(nsd,nsd), Hfs(nsd,nsd)
 !     Active strain for electromechanics
       REAL(KIND=RKIND) :: Fe(nsd,nsd), Fa(nsd,nsd), Fai(nsd,nsd)
+!     Dm has only minor symmetries?
+      LOGICAL minorFlag
+
+      minorFlag = .FALSE.
 
       S    = 0._RKIND
       Dm   = 0._RKIND
@@ -129,7 +135,12 @@
 
 !     NeoHookean model
       CASE (stIso_nHook)
-         g1 = 2._RKIND * stM%C10
+         IF (useVarWall) THEN
+!           Converting elastic modulus and poisson ratio to g1
+            g1 = eVWP(1)* 0.5_RKIND/(1._RKIND+eVWP(2))
+         ELSE
+            g1 = 2._RKIND * stM%C10
+         END IF
          Sb = g1*IDm
 
 !        Fiber reinforcement/active stress
@@ -360,13 +371,17 @@
             CC  = TEN_DDOT_3424(CC, CCb, nsd)
             CC  = TEN_DDOT_2412(CCb, CC, nsd)
          END IF
+      
+      CASE (stGR_equi)
+            CALL stress_tangent(F, fl, time, eVWP, grInt, S, CC)
+            minorFlag = .TRUE.
 
       CASE DEFAULT
          err = "Undefined material constitutive model"
       END SELECT
 
 !     Convert to Voigt Notation
-      CALL CCTOVOIGT(CC, Dm)
+      CALL CCTOVOIGT(CC, Dm, minorFlag)
 
       RETURN
       END SUBROUTINE GETPK2CC
@@ -690,7 +705,7 @@
       END SELECT
 
 !     Convert to Voigt Notation
-      CALL CCTOVOIGT(CC, Dm)
+      CALL CCTOVOIGT(CC, Dm, .FALSE.)
 
       RETURN
       END SUBROUTINE GETPK2CCdev
@@ -782,12 +797,12 @@
       END SUBROUTINE GETTAU
 !####################################################################
 !     Convert elasticity tensor to Voigt notation
-      SUBROUTINE CCTOVOIGT(CC, Dm)
+      SUBROUTINE CCTOVOIGT(CC, Dm, isMinor)
       USE COMMOD, ONLY : RKIND, nsd, nsymd
       IMPLICIT NONE
       REAL(KIND=RKIND), INTENT(IN) :: CC(nsd,nsd,nsd,nsd)
       REAL(KIND=RKIND), INTENT(INOUT) :: Dm(nsymd,nsymd)
-
+      LOGICAL,          INTENT(IN) :: isMinor
       INTEGER i, j
 
       IF (nsd .EQ. 3) THEN
@@ -818,11 +833,33 @@
 
          Dm(6,6) = CC(3,1,3,1)
 
-         DO i=2, 6
-            DO j=1, i-1
-               Dm(i,j) = Dm(j,i)
+         IF (isMinor) THEN
+            Dm(2,1) = CC(2,2,1,1)
+
+            Dm(3,1) = CC(3,3,1,1)
+            Dm(3,2) = CC(3,3,2,2)
+
+            Dm(4,1) = CC(1,2,1,1)
+            Dm(4,2) = CC(1,2,2,2)
+            Dm(4,3) = CC(1,2,3,3)
+
+            Dm(5,1) = CC(2,3,1,1)
+            Dm(5,2) = CC(2,3,2,2)
+            Dm(5,3) = CC(2,3,3,3)
+            Dm(5,4) = CC(2,3,1,2)
+
+            Dm(6,1) = CC(3,1,1,1)
+            Dm(6,2) = CC(3,1,2,2)
+            Dm(6,3) = CC(3,1,3,3)
+            Dm(6,4) = CC(3,1,1,2)
+            Dm(6,5) = CC(3,1,2,3)
+         ELSE
+            DO i=2, 6
+               DO j=1, i-1
+                  Dm(i,j) = Dm(j,i)
+               END DO
             END DO
-         END DO
+         END IF
 
       ELSE IF (nsd .EQ. 2) THEN
          Dm(1,1) = CC(1,1,1,1)
@@ -834,9 +871,15 @@
 
          Dm(3,3) = CC(1,2,1,2)
 
-         Dm(2,1) = Dm(1,2)
-         Dm(3,1) = Dm(1,3)
-         Dm(3,2) = Dm(2,3)
+         IF (isMinor) THEN
+            Dm(2,1) = CC(2,2,1,1)
+            Dm(3,1) = CC(1,2,1,1)
+            Dm(3,2) = CC(1,2,2,2)
+         ELSE
+            Dm(2,1) = Dm(1,2)
+            Dm(3,1) = Dm(1,3)
+            Dm(3,2) = Dm(2,3)
+         END IF
 
       END IF
 

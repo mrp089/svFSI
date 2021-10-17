@@ -97,6 +97,9 @@
          pstEq        = .FALSE.
          sstEq        = .FALSE.
          ibFlag       = .FALSE.
+!        Variable wall properties - SCHWARZ------------------
+         useVarWall   = .FALSE.
+!        ----------------------------------------------------
 
          i = IARGC()
          IF (i .NE. 0) THEN
@@ -2482,6 +2485,13 @@ c     2         "can be applied for Neumann boundaries only"
          lPtr => lSt%get(lDmn%stM%bss, "b4s")
          lPtr => lSt%get(lDmn%stM%afs, "afs")
          lPtr => lSt%get(lDmn%stM%bfs, "bfs")
+      
+      CASE ("GR_Equilibrated")
+         lDmn%stM%isoType = stGR_equi
+
+         ! not sure why this needs to be set if no penalty is used
+         lDmn%stM%Kpen = kap
+         RETURN
 
       CASE DEFAULT
          err = "Undefined constitutive model used"

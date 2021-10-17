@@ -276,6 +276,13 @@
          Yo = Yn
          IF (dFlag) Do = Dn
          cplBC%xo = cplBC%xn
+
+!        Update G&R internal variables if allocated
+         DO iM=1, nMsh
+            IF (ALLOCATED(msh(iM)%grVo)) THEN
+               msh(iM)%grVo = msh(iM)%grVn
+            END IF
+         END DO
       END DO
 !     End of outer loop
 

@@ -33,3 +33,11 @@
 
 # System files osx 
 **/.DS_Store
+
+# eclipse files
+.project
+.cproject
+.settings/*
+
+# build folder
+build/*
