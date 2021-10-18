@@ -99,10 +99,8 @@
             dl(:,a)  = Dg(:,Ac)
             bfl(:,a) = Bf(:,Ac)
 
-!           Variable wall - SCHWARZ July 2021---------------------------
 !           Calculate local wall property
             IF (useVarWall) lVWP(:,a) = vWP0(:,Ac)
-!           ------------------------------------------------------------
 
             IF (ALLOCATED(lM%fN)) THEN
                DO iFn=1, nFn

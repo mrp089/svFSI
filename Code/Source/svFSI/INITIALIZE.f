@@ -724,9 +724,7 @@
       IF (ALLOCATED(pSn))      DEALLOCATE(pSn)
       IF (ALLOCATED(pSa))      DEALLOCATE(pSa)
 
-!     Variable wall properties - SCHWARZ July 2021 ---------------------
       IF (ALLOCATED(vWP0))      DEALLOCATE(vWP0)
-!     ------------------------------------------------------------------
 
       IF (ALLOCATED(Pinit))    DEALLOCATE(Pinit)
       IF (ALLOCATED(Vinit))    DEALLOCATE(Vinit)
