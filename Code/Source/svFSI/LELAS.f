@@ -47,16 +47,14 @@
 
       INTEGER(KIND=IKIND), ALLOCATABLE :: ptr(:)
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), dl(:,:),
-     2   bfl(:,:), pS0l(:,:), pSl(:), N(:), Nx(:,:), lR(:,:), lK(:,:,:),
-     3   lVWP(:,:)
+     2   bfl(:,:), pS0l(:,:), pSl(:), N(:), Nx(:,:), lR(:,:), lK(:,:,:)
 
       eNoN = lM%eNoN
 
 !     LELAS: dof = nsd
       ALLOCATE(ptr(eNoN), xl(nsd,eNoN), al(tDof,eNoN), dl(tDof,eNoN),
      2   bfl(nsd,eNoN), pS0l(nsymd,eNoN), pSl(nsymd), N(eNoN),
-     3   Nx(nsd,eNoN), lR(dof,eNoN), lK(dof*dof,eNoN,eNoN),
-     4   lVWP(nvwp,eNoN))
+     3   Nx(nsd,eNoN), lR(dof,eNoN), lK(dof*dof,eNoN,eNoN))
 
 
 !     Loop over all elements of mesh
@@ -79,12 +77,6 @@
             dl(:,a)  = Dg(:,Ac)
             bfl(:,a) = Bf(:,Ac)
             IF (ALLOCATED(pS0)) pS0l(:,a) = pS0(:,Ac)
-!           Variable wall - SCHWARZ July 2021---------------------------
-!           Calculate local wall property
-            IF (useVarWall) THEN
-               lVWP(:,a) = vWP0(:,Ac)
-            END IF
-!        ---------------------------------------------------------------
          END DO
 
 
@@ -102,7 +94,7 @@
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
                CALL LELAS3D(eNoN, w, N, Nx, al, dl, bfl, pS0l, pSl, lR,
-     2            lK, lVWP)
+     2            lK)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL LELAS2D(eNoN, w, N, Nx, al, dl, bfl, pS0l, pSl, lR,
@@ -186,14 +178,6 @@
          ed(5) = ed(5) + Nx(3,a)*dl(j,a) + Nx(2,a)*dl(k,a)
          ed(6) = ed(6) + Nx(1,a)*dl(k,a) + Nx(3,a)*dl(i,a)
 
-!     Variable wall - SCHWARZ July 2021---------------------------------
-!     Calculate local wall property
-!     Don't use on the mesh part though lol
-         IF (useVarWall .AND. (phys_mesh .NE. eq(cEq)%phys)) THEN
-            eVWP(:) = eVWP(:) + N(a)*lVWP(:,a)
-         END IF
-!     ------------------------------------------------------------------
-
          S0(1) = S0(1) + N(a)*pS0l(1,a)
          S0(2) = S0(2) + N(a)*pS0l(2,a)
          S0(3) = S0(3) + N(a)*pS0l(3,a)
@@ -203,18 +187,6 @@
       END DO
       divD = lambda*(ed(1) + ed(2) + ed(3))
 
-
-!     Variable wall - SCHWARZ July 2021---------------------------------
-!     Calculate local wall property
-      IF (useVarWall .AND. (phys_mesh .NE. eq(cEq)%phys)) THEN
-         Cst(1,:) = eVWP(1:6)
-         Cst(2,:) = eVWP(7:12)
-         Cst(3,:) = eVWP(13:18)
-         Cst(4,:) = eVWP(19:24)
-         Cst(5,:) = eVWP(25:30)
-         Cst(6,:) = eVWP(31:36)
-         S(:) = MATMUL(Cst,ed)
-      ELSE
    !     Stress in Voigt notation
          S(1) = divD + 2._RKIND*mu*ed(1)
          S(2) = divD + 2._RKIND*mu*ed(2)
@@ -222,7 +194,6 @@
          S(4) = mu*ed(4)  ! 2*eps_12
          S(5) = mu*ed(5)  ! 2*eps_23
          S(6) = mu*ed(6)  ! 2*eps_13
-      END IF
 
 !     ------------------------------------------------------------------
 

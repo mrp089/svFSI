@@ -135,12 +135,7 @@
 
 !     NeoHookean model
       CASE (stIso_nHook)
-         IF (useVarWall) THEN
-!           Converting elastic modulus and poisson ratio to g1
-            g1 = eVWP(1)* 0.5_RKIND/(1._RKIND+eVWP(2))
-         ELSE
-            g1 = 2._RKIND * stM%C10
-         END IF
+         g1 = 2._RKIND * stM%C10
          Sb = g1*IDm
 
 !        Fiber reinforcement/active stress

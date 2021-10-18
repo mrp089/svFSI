@@ -163,7 +163,7 @@
 
                CASE (phys_lElas)
                   CALL LELAS3D(fs(1)%eNoN, w, fs(1)%N(:,g), Nwx, al, dl,
-     2               bfl, pS0l, pSl, lR, lK, lVWP)
+     2               bfl, pS0l, pSl, lR, lK)
 
                CASE (phys_struct)
                   CALL STRUCT3D(fs(1)%eNoN, nFn, w, fs(1)%N(:,g), Nwx,
