@@ -56,7 +56,6 @@
      2   bfl(nsd,eNoN), pS0l(nsymd,eNoN), pSl(nsymd), N(eNoN),
      3   Nx(nsd,eNoN), lR(dof,eNoN), lK(dof*dof,eNoN,eNoN))
 
-
 !     Loop over all elements of mesh
       DO e=1, lM%nEl
 !        Update domain and proceed if domain phys and eqn phys match
@@ -78,7 +77,6 @@
             bfl(:,a) = Bf(:,Ac)
             IF (ALLOCATED(pS0)) pS0l(:,a) = pS0(:,Ac)
          END DO
-
 
 !        Gauss integration
          lR = 0._RKIND
@@ -130,19 +128,18 @@
       END SUBROUTINE CONSTRUCT_LELAS
 !####################################################################
       PURE SUBROUTINE LELAS3D (eNoN, w, N, Nx, al, dl, bfl, pS0l, pSl,
-     2   lR, lK, lVWP)
+     2   lR, lK)
       USE COMMOD
       IMPLICIT NONE
       INTEGER(KIND=IKIND), INTENT(IN) :: eNoN
       REAL(KIND=RKIND), INTENT(IN) :: w, N(eNoN), Nx(3,eNoN),
-     2   al(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN), pS0l(6,eNoN),
-     3   lVWP(nvwp,eNoN)
+     2   al(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN), pS0l(6,eNoN)
       REAL(KIND=RKIND), INTENT(INOUT) :: pSl(6), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
 
       INTEGER(KIND=IKIND) a, b, i, j, k
       REAL(KIND=RKIND) NxdNx, rho, elM, nu, lambda, mu, divD, T1, amd,
-     2   wl, lDm, ed(6), ud(3), f(3), S0(6), S(6), eVWP(nvwp), Cst(6,6)
+     2   wl, lDm, ed(6), ud(3), f(3), S0(6), S(6)
 
       rho  = eq(cEq)%dmn(cDmn)%prop(solid_density)
       elM  = eq(cEq)%dmn(cDmn)%prop(elasticity_modulus)
@@ -164,8 +161,6 @@
       ed = 0._RKIND
       ud = -f
       S0 = 0._RKIND
-      eVWP = 0._RKIND
-
       DO a=1, eNoN
          ud(1) = ud(1) + N(a)*(al(i,a)-bfl(1,a))
          ud(2) = ud(2) + N(a)*(al(j,a)-bfl(2,a))
@@ -187,16 +182,13 @@
       END DO
       divD = lambda*(ed(1) + ed(2) + ed(3))
 
-   !     Stress in Voigt notation
-         S(1) = divD + 2._RKIND*mu*ed(1)
-         S(2) = divD + 2._RKIND*mu*ed(2)
-         S(3) = divD + 2._RKIND*mu*ed(3)
-         S(4) = mu*ed(4)  ! 2*eps_12
-         S(5) = mu*ed(5)  ! 2*eps_23
-         S(6) = mu*ed(6)  ! 2*eps_13
-
-!     ------------------------------------------------------------------
-
+!     Stress in Voigt notation
+      S(1) = divD + 2._RKIND*mu*ed(1)
+      S(2) = divD + 2._RKIND*mu*ed(2)
+      S(3) = divD + 2._RKIND*mu*ed(3)
+      S(4) = mu*ed(4)  ! 2*eps_12
+      S(5) = mu*ed(5)  ! 2*eps_23
+      S(6) = mu*ed(6)  ! 2*eps_13
       pSl  = S
 
 !     Add prestress contribution
