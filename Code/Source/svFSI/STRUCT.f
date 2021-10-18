@@ -87,10 +87,9 @@
             dl(:,a)  = Dg(:,Ac)
             bfl(:,a) = Bf(:,Ac)
 
-!           Variable wall - SCHWARZ July 2021---------------------------
 !           Calculate local wall property
             IF (useVarWall) lVWP(:,a) = vWP0(:,Ac)
-!           ------------------------------------------------------------
+
             IF (ALLOCATED(lM%fN)) THEN
                DO iFn=1, nFn
                   fN(:,iFn) = lM%fN((iFn-1)*nsd+1:iFn*nsd,e)
@@ -183,8 +182,7 @@
       fb(2)   = eq(cEq)%dmn(cDmn)%prop(f_y)
       fb(3)   = eq(cEq)%dmn(cDmn)%prop(f_z)
       amd     = eq(cEq)%am*rho + eq(cEq)%af*eq(cEq)%gam*dt*dmp
-!      afl     = eq(cEq)%af*eq(cEq)%beta*dt*dt
-      afl     = eq(cEq)%af*eq(cEq)%beta
+      afl     = eq(cEq)%af*eq(cEq)%beta*dt*dt
       i       = eq(cEq)%s
       j       = i + 1
       k       = j + 1
@@ -214,10 +212,8 @@
          F(3,2) = F(3,2) + Nx(2,a)*dl(k,a)
          F(3,3) = F(3,3) + Nx(3,a)*dl(k,a)
 
-!     Variable wall - SCHWARZ July 2021---------------------------------
 !     Calculate local wall property
          IF (useVarWall) eVWP(:) = eVWP(:) + N(a)*lVWP(:,a)
-!     ------------------------------------------------------------------
 
          S0(1,1) = S0(1,1) + N(a)*pS0l(1,a)
          S0(2,2) = S0(2,2) + N(a)*pS0l(2,a)
