@@ -650,7 +650,7 @@
                DO e=1, msh(iM)%nEl
                   DO g=1, msh(iM)%nG
                      DO i=1, 24
-                        READ(fid) msh(iM)%grVn(i,g,e)
+                        READ(fid) msh(iM)%grVo(i,g,e)
                      END DO
                   END DO
                END DO
