@@ -99,6 +99,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	N[2] = n2; N[2] = N[2]/sqrt(N[2]*N[2]);		// axial = d(Xcl)/d(z)
 	N[1] = n1;																					// circumferential
 	N[0] = N[2]^N[1];
+	
+	const double azimuth = acos(-NX.y);							// azimuth wrt axis -Y
 
 	const double phieo = 0.34;								// 0.34 (CMAME | KNOCKOUTS) | 1.00 (TEVG) | 1.0/3.0 (TEVG)
 	const double phimo = 0.5*(1.0-phieo);
@@ -146,6 +148,29 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double aexp = 1.0;									// 1.0 (KNOCKOUTS | TEVG) | 0.0 (CMAME | TORTUOSITY)
 
 	const double delta = 0.0;
+
+	if (t > pretime + eps) {
+
+		// Axisymmetric aneurysm (damaged elastin) or ...
+
+		const double muout = 1.00*mu;
+		const double muin  = 0.40*mu;
+		mu = muout+(muin-muout)*(sgr-1.0)/(endtime-1.0)*exp(-pow(abs((X.z-(15.0/2.0))/((15.0/2.0)/2.0)),5));
+
+		const double KsKiout = 0.35;
+		const double KsKiin  = 0.00;
+		KsKi = KsKiout+(KsKiin-KsKiout)*exp(-pow(abs((X.z-(15.0/2.0))/((15.0/2.0)/2.0)),5));
+
+		// ... asymmetric aneurysm (damaged elastin)
+
+	/*	const double muout = 1.00*mu;
+		const double muin  = 0.25*mu;
+		mu = muout+(muin-muout)*(sgr-1.0)/(endtime-1.0)*exp(-pow(abs((X.z-(15.0/2.0))/((15.0/2.0)/2.0)),5))*exp(-pow(abs((azimuth-M_PI)/(M_PI/3.0)),5));
+
+		const double KsKiout = 0.00;
+		const double KsKiin  = 0.00;
+		KsKi = KsKiout+(KsKiin-KsKiout)*exp(-pow(abs((X.z-(15.0/2.0))/((15.0/2.0)/2.0)),5)); */
+	}
 
 	// Ge from spectral decomposition
 	const mat3ds Ge = 1.0/Get/Gez*dyad(N[0]) + Get*dyad(N[1]) + Gez*dyad(N[2]);
