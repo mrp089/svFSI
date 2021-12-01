@@ -682,6 +682,8 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 
   // set up linear problem
   Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
+//  EpetraExt::RowMatrixToMatlabFile("K_direct.mat", *((Epetra_RowMatrix *) &K));
+//  std::terminate();
 
   // Compute norm of preconditioned multivector F that we will be solving
   // problem with
