@@ -28,17 +28,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
 
-//	// radial (from file)
-//	vec3d f_rad(fl[0], fl[1], fl[2]);
-//	f_rad /= f_rad.norm();
-//
-//	// axial (constant)
-//	vec3d f_axi(0.0, 0.0, 1.0);
-//
-//	// circumferential (from cross product)
-//	vec3d f_cir = f_rad ^ f_axi;
-//	f_cir /= f_cir.norm();
-
 	// right Cauchy-Green tensor and its inverse
 	const mat3ds C = (F.transpose() * F).sym();
 	const mat3ds Ci = C.inverse();
@@ -48,15 +37,13 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	double eigenval[3]; vec3d eigenvec[3];
 	U.eigen2(eigenval,eigenvec);
 
-    // Evaluate right stretch tensor U from C
-    vec3d v[3];
-    double lam[3];
-    C.eigen2(lam, v);
-    lam[0] = sqrt(lam[0]); lam[1] = sqrt(lam[1]); lam[2] = sqrt(lam[2]);
-    const double J = lam[0]*lam[1]*lam[2];
-
 	// determinant of the deformation gradient
-//	const double J = F.det();
+	const double J = F.det();
+//	if (J < 0.0)
+//	{
+//		std::cout<<"negative jacobian"<<std::endl;
+//		std::terminate();
+//	}
 
 	// get current and end times
 	const double t = *time;
@@ -71,7 +58,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double imper = 0.00;					// imper > 0 for TORTUOSITY (see Matlab script <NodesElementsAsy.m>) | 0.00 | 20.0
 	const double rIo = 0.6468;					// 0.6468 | 0.5678
 	const double hwaves = 2.0;
-	const double lo = 30.0;
+	const double lo = 15.0;
 //	const double ro = eVWP[0];
 //
 //	// retrieve local element basis directions
@@ -108,7 +95,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	const double eta = 1.0;									// 1.0 | 1.0/3.0 (for uniform cases) | 0.714
 
-	const double mu = 89.71;
+	double mu = 89.71;
 	const double Get = 1.90;
 	const double Gez = 1.62;
 
@@ -139,37 +126,56 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double CB = sqrt(log(2.0));							// such that (1-exp(-CB^2)) = 0.5
 	const double CS = 0.5*CB * 1.0;							// such that (1-exp( -C^2)) = 0.0 for lt = 1/(1+CB/CS)^(1/3) = 0.7 and (1-exp(-C^2)) = 0.75 for lt = 2.0
 
-	const double KsKi = 0.35;
+	double KsKi = 0.35;
 	const double EPS  = 1.0+(1.0-1.0)*(sgr-1.0)/(endtime-1.0);
 
 	const double KfKi   = 1.0;
 	const double inflam = 0.0*(sgr-1.0)/(endtime-1.0);
 
-	const double aexp = 1.0;									// 1.0 (KNOCKOUTS | TEVG) | 0.0 (CMAME | TORTUOSITY)
+	const double aexp = 0.0;									// 1.0 (KNOCKOUTS | TEVG) | 0.0 (CMAME | TORTUOSITY)
 
 	const double delta = 0.0;
 
-	if (t > pretime + eps) {
+	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
+	if (t > pretime - eps) {
+		// location of aneurysm (= middle)
+		const double z_om = lo/2.0;
 
 		// Axisymmetric aneurysm (damaged elastin) or ...
 
-		const double muout = 1.00*mu;
-		const double muin  = 0.40*mu;
-		mu = muout+(muin-muout)*(sgr-1.0)/(endtime-1.0)*exp(-pow(abs((X.z-(15.0/2.0))/((15.0/2.0)/2.0)),5));
+		// 8b
+		const double z_od = lo/4.0;
+		const int vz = 2;
+		const double phi_e_hm = 0.65;
 
-		const double KsKiout = 0.35;
-		const double KsKiin  = 0.00;
-		KsKi = KsKiout+(KsKiin-KsKiout)*exp(-pow(abs((X.z-(15.0/2.0))/((15.0/2.0)/2.0)),5));
+		// 8d
+//		const double theta_od = 3.0;
 
-		// ... asymmetric aneurysm (damaged elastin)
+		// time factor [0, 1]
+		const double f_time = 1.0 - (sgr - 1.0) / (endtime - 1.0);
 
-	/*	const double muout = 1.00*mu;
-		const double muin  = 0.25*mu;
-		mu = muout+(muin-muout)*(sgr-1.0)/(endtime-1.0)*exp(-pow(abs((X.z-(15.0/2.0))/((15.0/2.0)/2.0)),5))*exp(-pow(abs((azimuth-M_PI)/(M_PI/3.0)),5));
+		// axial factor (0, 1]
+		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vz));
 
-		const double KsKiout = 0.00;
-		const double KsKiin  = 0.00;
-		KsKi = KsKiout+(KsKiin-KsKiout)*exp(-pow(abs((X.z-(15.0/2.0))/((15.0/2.0)/2.0)),5)); */
+		// azimuth factor (0, 1)
+//		const double f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
+
+		mu   *= f_time + (1.0 - f_time) * (1.0 - f_axi * phi_e_hm);
+		KsKi *= f_time + (1.0 - f_time) * (1.0 - f_axi);
+
+//		std::cout<<"t "<<f_time<<" z "<<X.z<<" mu "<<mu<<" KsKi "<<KsKi<<std::endl;
+//		if (J < 0.0)
+//		{
+//			std::cout<<"negative jacobian "<<J<<" at "<<X.x<<" "<<X.y<<" "<<X.z<<std::endl;
+//			for (int i=0; i<3; ++i)
+//			{
+//				for (int j=0; j<3; ++j)
+//					std::cout<<F(i,j)<<" ";
+//				std::cout<<std::endl;
+//			}
+//			std::cout<<std::endl;
+//			std::terminate();
+//		}
 	}
 
 	// Ge from spectral decomposition
@@ -531,11 +537,17 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	}
 
 	// pull back to reference configuration
-//	tens4dmm css_ref = J*css.pp(F.inverse());
+	tens4dmm css_ref = J*css.pp(F.inverse());
 
-    // Convert spatial tangent to material tangent
-    mat3d Ui = dyad(v[0])/lam[0] + dyad(v[1])/lam[1] + dyad(v[2])/lam[2];
-    tens4dmm css_ref = css.pp(Ui)*J;
+//	for (int i=0; i < 3; i++)
+//	{
+//		for (int j=0; j < 3; j++)
+//			std::cout<<F.inverse()(i,j)<<" ";
+//		std::cout<<std::endl;
+//	}
+//	std::cout<<std::endl;
+//	if (t >= 6.0 - eps)
+//		std::cout<<"J "<<J<<" ";
 
 	// convert to vector for FORTRAN
 	typedef double (*ten2)[3];
@@ -561,10 +573,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 						std::terminate();
 				}
 }
-}
 
 
-void stress_tangent_stvk_(const double* Fe, const double* fl, const double* xgp, const double* time, double* S_out, double* CC_out)
+void stress_tangent_stvk_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
@@ -609,6 +620,7 @@ void stress_tangent_stvk_(const double* Fe, const double* fl, const double* xgp,
 			for (int k=0; k < 3; k++)
 				for (int l=0; l < 3; l++)
 					C4[l][k][j][i] = css(i, j, k, l);
+}
 }
 
 //void print_mat(const std::string name, const double* mat) {
