@@ -491,42 +491,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))
 						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss)
 						 - 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
-
-//		if (0 < eVWP[3] and eVWP[3] < 0.64884 and 0 < eVWP[4] and eVWP[4] < 1.0e-2 and eVWP[5] < 1.0e-2) // 3 o clock
-//		if (abs(eVWP[3] - 0.601361) < 1.0e-2 and abs(eVWP[4] - 0.238096) < 1.0e-2 and eVWP[5] < 1.0e-2) // 2 o clock
-		if(false)
-		{
-//			std::cout<<sx.tr()<<std::endl;//ok
-//			std::cout<<svo<<std::endl;//ok
-//			std::cout<<rIrIo<<std::endl;//ok
-//			std::cout<<Cratio<<std::endl;//ok
-//			std::cout<<ro<<std::endl;//ok
-//			std::cout<<Ixnrr(0, 0, 0, 1)<<std::endl;//ok?
-//			std::cout<<ro/rIo/lt<<std::endl;//ok
-//			Se;//ok
-
-//			std::cout<<"x\t"<<" "<<"\t"<<eVWP[3]<<"\t"<<eVWP[4]<<"\t"<<eVWP[5]<<std::endl;
-//			std::cout<<std::endl;
-//
-//			std::cout<<"N\n";
-//			for (int i=0; i<3; i++)
-//				std::cout<<i<<" "<<"\t"<<N[i].x<<"\t"<<N[i].y<<"\t"<<N[i].z<<std::endl;
-//			std::cout<<std::endl;
-
-			for (int i=0; i<3; i++)
-				for (int j=0; j<3; j++)
-					std::cout<<i<<" "<<j<<"\t"<<Sx(i,j)<<std::endl;
-			std::cout<<std::endl;
-
-			for (int i=0; i < 3; i++)
-				for (int j=0; j < 3; j++)
-					for (int k=0; k < 3; k++)
-						for (int l=0; l < 3; l++)
-							std::cout<<i<<" "<<j<<" "<<k<<" "<<l<<"\t"<<css(i, j, k, l)<<std::endl;
-
-			//		std::cout<<"\n"<<std::endl;
-			std::terminate();
-		}
 		break;
 	}
 	case elastic:
@@ -538,16 +502,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// pull back to reference configuration
 	tens4dmm css_ref = J*css.pp(F.inverse());
-
-//	for (int i=0; i < 3; i++)
-//	{
-//		for (int j=0; j < 3; j++)
-//			std::cout<<F.inverse()(i,j)<<" ";
-//		std::cout<<std::endl;
-//	}
-//	std::cout<<std::endl;
-//	if (t >= 6.0 - eps)
-//		std::cout<<"J "<<J<<" ";
 
 	// convert to vector for FORTRAN
 	typedef double (*ten_2nd)[3];
