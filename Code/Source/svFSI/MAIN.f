@@ -107,23 +107,23 @@
          END IF
 
 !        make quasi-static
-              An = 0._RKIND
-              Ao = 0._RKIND
-              Ag = 0._RKIND
-              Yn = 0._RKIND
-              Yo = 0._RKIND
-              Yg = 0._RKIND
+!              An = 0._RKIND
+!              Ao = 0._RKIND
+!              Ag = 0._RKIND
+!              Yn = 0._RKIND
+!              Yo = 0._RKIND
+!              Yg = 0._RKIND
 
 !     Predictor step
          CALL PICP
 
 !        make quasi-static
-              An = 0._RKIND
-              Ao = 0._RKIND
-              Ag = 0._RKIND
-              Yn = 0._RKIND
-              Yo = 0._RKIND
-              Yg = 0._RKIND
+!              An = 0._RKIND
+!              Ao = 0._RKIND
+!              Ag = 0._RKIND
+!              Yn = 0._RKIND
+!              Yo = 0._RKIND
+!              Yg = 0._RKIND
 
 !     Apply Dirichlet BCs strongly
          CALL SETBCDIR(An, Yn, Dn)
@@ -155,22 +155,22 @@
             DO iM=1, nMsh
 
 !        make quasi-static
-              An = 0._RKIND
-              Ao = 0._RKIND
-              Ag = 0._RKIND
-              Yn = 0._RKIND
-              Yo = 0._RKIND
-              Yg = 0._RKIND
+!              An = 0._RKIND
+!              Ao = 0._RKIND
+!              Ag = 0._RKIND
+!              Yn = 0._RKIND
+!              Yo = 0._RKIND
+!              Yg = 0._RKIND
 
                CALL GLOBALEQASSEM(msh(iM), Ag, Yg, Dg)
 
 !        make quasi-static
-              An = 0._RKIND
-              Ao = 0._RKIND
-              Ag = 0._RKIND
-              Yn = 0._RKIND
-              Yo = 0._RKIND
-              Yg = 0._RKIND
+!              An = 0._RKIND
+!              Ao = 0._RKIND
+!              Ag = 0._RKIND
+!              Yn = 0._RKIND
+!              Yo = 0._RKIND
+!              Yg = 0._RKIND
 
                dbg = "Mesh "//iM//" is assembled"
             END DO
@@ -233,12 +233,12 @@
             CALL PICC
 
 !        make quasi-static
-              An = 0._RKIND
-              Ao = 0._RKIND
-              Ag = 0._RKIND
-              Yn = 0._RKIND
-              Yo = 0._RKIND
-              Yg = 0._RKIND
+!              An = 0._RKIND
+!              Ao = 0._RKIND
+!              Ag = 0._RKIND
+!              Yn = 0._RKIND
+!              Yo = 0._RKIND
+!              Yg = 0._RKIND
 
 !        Checking for exceptions
             CALL EXCEPTIONS
