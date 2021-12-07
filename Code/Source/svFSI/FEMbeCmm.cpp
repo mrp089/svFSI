@@ -39,11 +39,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// determinant of the deformation gradient
 	const double J = F.det();
-//	if (J < 0.0)
-//	{
-//		std::cout<<"negative jacobian"<<std::endl;
-//		std::terminate();
-//	}
+	if (J < 0.0)
+		std::terminate();
 
 	// get current and end times
 	const double t = *time;
@@ -59,15 +56,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double rIo = 0.6468;					// 0.6468 | 0.5678
 	const double hwaves = 2.0;
 	const double lo = 15.0;
-//	const double ro = eVWP[0];
-//
-//	// retrieve local element basis directions
-//	vec3d N[3];
-//
-//	// pointwise, consistent with mesh generated with Matlab script <NodesElementsAsy.m>
-//	N[0] = f_rad;
-//	N[1] = f_cir;
-//	N[2] = f_axi;
 
 	const vec3d  X(eVWP[3], eVWP[4], eVWP[5]);
 	const vec3d  Xcl(0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z);		// center line
@@ -137,11 +125,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double delta = 0.0;
 
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
-	if (t > pretime - eps) {
+	const bool aneurysm = true;
+	const bool aneurysm_asym = false;
+	if (aneurysm and t >= pretime - eps) {
 		// location of aneurysm (= middle)
 		const double z_om = lo/2.0;
-
-		// Axisymmetric aneurysm (damaged elastin) or ...
 
 		// 8b
 		const double z_od = lo/4.0;
@@ -149,7 +137,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double phi_e_hm = 0.65;
 
 		// 8d
-//		const double theta_od = 3.0;
+		const double theta_od = 3.0;
 
 		// time factor [0, 1]
 		const double f_time = (sgr - 1.0) / (endtime - 1.0);
@@ -157,25 +145,13 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// axial factor (0, 1]
 		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vz));
 
-		// azimuth factor (0, 1)
-//		const double f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
+		// azimuth factor (0, 1]
+		double f_cir = 1.0;
+		if (aneurysm_asym)
+			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
 
-		mu   *= 1.0 - f_time * f_axi * phi_e_hm;
+		mu   *= 1.0 - f_time * f_axi * f_cir * phi_e_hm;
 		KsKi *= 1.0 - f_time * f_axi;
-
-//		std::cout<<"t "<<f_time<<" z "<<X.z<<" mu "<<mu<<" KsKi "<<KsKi<<std::endl;
-//		if (J < 0.0)
-//		{
-//			std::cout<<"negative jacobian "<<J<<" at "<<X.x<<" "<<X.y<<" "<<X.z<<std::endl;
-//			for (int i=0; i<3; ++i)
-//			{
-//				for (int j=0; j<3; ++j)
-//					std::cout<<F(i,j)<<" ";
-//				std::cout<<std::endl;
-//			}
-//			std::cout<<std::endl;
-//			std::terminate();
-//		}
 	}
 
 	// Ge from spectral decomposition
