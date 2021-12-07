@@ -152,7 +152,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //		const double theta_od = 3.0;
 
 		// time factor [0, 1]
-		const double f_time = 1.0 - (sgr - 1.0) / (endtime - 1.0);
+		const double f_time = (sgr - 1.0) / (endtime - 1.0);
 
 		// axial factor (0, 1]
 		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vz));
@@ -160,8 +160,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// azimuth factor (0, 1)
 //		const double f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
 
-		mu   *= f_time + (1.0 - f_time) * (1.0 - f_axi * phi_e_hm);
-		KsKi *= f_time + (1.0 - f_time) * (1.0 - f_axi);
+		mu   *= 1.0 - f_time * f_axi * phi_e_hm;
+		KsKi *= 1.0 - f_time * f_axi;
 
 //		std::cout<<"t "<<f_time<<" z "<<X.z<<" mu "<<mu<<" KsKi "<<KsKi<<std::endl;
 //		if (J < 0.0)
