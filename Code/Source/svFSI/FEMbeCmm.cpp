@@ -36,6 +36,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	mat3ds U; mat3d R; F.right_polar(R,U);
 	double eigenval[3]; vec3d eigenvec[3];
 	U.eigen2(eigenval,eigenvec);
+	mat3d u(U);
 
 	// determinant of the deformation gradient
 	const double J = F.det();
@@ -170,6 +171,13 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// stress for elastin
 	const mat3ds Se = (phieo*mu*Ge*Ge).sym();						// phieo*Ge*Sehat*Ge = phieo*Ge*(mu*I)*Ge
 
+	// passive stresses
+	mat3ds Sm;
+	mat3ds Sc;
+
+	// active stress
+	mat3ds Sa;
+
 	// define identity tensor and some useful dyadic products of the identity tensor
 	const mat3dd  I(1.0);
 	const tens4ds IxI = dyad1s(I);
@@ -185,6 +193,41 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// computation of spatial moduli
 	tens4dmm css;
 	mat3ds sfpro;
+
+	// internal variables
+	double   Jo;
+	double  svo;
+	double phic;
+	mat3ds  smo;
+	mat3ds  sco;
+	mat3d   Fio;
+
+	// retrieve internal variables (1+1+1+6+6+9 = 24)
+	if (mode == gr or mode == elastic)
+	{
+		Jo   = grInt[0];
+		svo  = grInt[1];
+		phic = grInt[2];
+		int k = 3;
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				smo(i,j) = grInt[k];
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				sco(i,j) = grInt[k];
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=0; j<3; j++)
+			{
+				Fio(i,j) = grInt[k];
+				k++;
+			}
+	}
 
 	// select material evaluation according to G&R mode
 	switch(mode)
@@ -220,8 +263,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		S = Sx + Ci*lm*log(Jdep*J);
 
-		mat3d u(U);
-
 		// compute tangent
 		const mat3ds tent = dyad(F*N[1]);
 		const mat3ds tenz = dyad(F*N[2]);
@@ -245,68 +286,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		c += lm/J*(IxI-2.0*log(Jdep*J)*IoI);
 
 		css = tens4dmm(c);		// c in tens4dmm form
-
-		// update internal variables
-		double   Jo = J;
-		double  svo = 1.0/3.0/J*S.dotdot(C);
-		double phic = phico;
-		mat3ds  smo = 1.0/J*(u*(Sm*u)).sym();
-		mat3ds  sco = 1.0/J*(u*(Sc*u)).sym();
-		mat3d   Fio = F.inverse();
-
-		grInt[0] = Jo;
-		grInt[1] = svo;
-		grInt[2] = phic;
-		int k = 3;
-		for (int i=0; i<3; i++)
-			for (int j=i; j<3; j++)
-			{
-				grInt[k] = smo(i,j);
-				k++;
-			}
-		for (int i=0; i<3; i++)
-			for (int j=i; j<3; j++)
-			{
-				grInt[k] = sco(i,j);
-				k++;
-			}
-		for (int i=0; i<3; i++)
-			for (int j=0; j<3; j++)
-			{
-				grInt[k] = Fio(i,j);
-				k++;
-			}
 		break;
 	}
 	case gr:
 	{
-		// retrieve internal variables (1+1+1+6+6+9 = 24)
-		double   Jo = grInt[0];
-		double  svo = grInt[1];
-		double phic = grInt[2];
-		mat3ds  smo;
-		mat3ds  sco;
-		mat3d   Fio;
-		int k = 3;
-		for (int i=0; i<3; i++)
-			for (int j=i; j<3; j++)
-			{
-				smo(i,j) = grInt[k];
-				k++;
-			}
-		for (int i=0; i<3; i++)
-			for (int j=i; j<3; j++)
-			{
-				sco(i,j) = grInt[k];
-				k++;
-			}
-		for (int i=0; i<3; i++)
-			for (int j=0; j<3; j++)
-			{
-				Fio(i,j) = grInt[k];
-				k++;
-			}
-
 		// compute stress
 		phic = phico;																// initial guess
 		double dRdc = J/Jo*(1.0+phimo/phico*eta*pow(J/Jo*phic/phico,eta-1.0));		// initial tangent d(R)/d(phic)
@@ -526,6 +509,40 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 					if (std::isnan(css_ref(i, j, k, l)))
 						std::terminate();
 				}
+
+	// update internal variables
+	if (mode == prestress)
+	{
+		Jo = J;
+		svo = 1.0/3.0/J*S.dotdot(C);
+		phic = phico;
+		smo = 1.0/J*(u*(Sm*u)).sym();
+		sco = 1.0/J*(u*(Sc*u)).sym();
+		Fio = F.inverse();
+
+		grInt[0] = Jo;
+		grInt[1] = svo;
+		grInt[2] = phic;
+		int k = 3;
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				grInt[k] = smo(i,j);
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				grInt[k] = sco(i,j);
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=0; j<3; j++)
+			{
+				grInt[k] = Fio(i,j);
+				k++;
+			}
+	}
 }
 
 
