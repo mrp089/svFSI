@@ -124,10 +124,20 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	const double delta = 0.0;
 
+	// select G&R mode
+	enum GR_Mode { prestress, gr, elastic };
+	GR_Mode mode;
+	if (t <= pretime + eps)
+		mode = prestress;
+	else if (t <= partialtime + eps)
+		mode = gr;
+	else
+		mode = elastic;
+
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
 	const bool aneurysm = true;
 	const bool aneurysm_asym = false;
-	if (aneurysm and t >= pretime - eps) {
+	if (aneurysm and mode == gr) {
 		// location of aneurysm (= middle)
 		const double z_om = lo/2.0;
 
@@ -175,7 +185,12 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// computation of spatial moduli
 	tens4dmm css;
 	mat3ds sfpro;
-	if (t <= pretime + eps) {
+
+	// select material evaluation according to G&R mode
+	switch(mode)
+	{
+	case prestress:
+	{
 		// compute stress
 		const double Jdep = 0.9999;
 		const double lm = 1.0e3*mu;
@@ -261,8 +276,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 				grInt[k] = Fio(i,j);
 				k++;
 			}
+		break;
 	}
-	else if (t <= partialtime + eps) {
+	case gr:
+	{
 		// retrieve internal variables (1+1+1+6+6+9 = 24)
 		double   Jo = grInt[0];
 		double  svo = grInt[1];
@@ -510,6 +527,13 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 			//		std::cout<<"\n"<<std::endl;
 			std::terminate();
 		}
+		break;
+	}
+	case elastic:
+	{
+		// todo: implement purely elastic response
+		break;
+	}
 	}
 
 	// pull back to reference configuration
@@ -526,10 +550,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //		std::cout<<"J "<<J<<" ";
 
 	// convert to vector for FORTRAN
-	typedef double (*ten2)[3];
-	typedef double (*ten4)[3][3][3];
+	typedef double (*ten_2nd)[3];
+	typedef double (*ten_4th)[3][3][3];
 
-	ten2 S2 = (ten2) S_out;
+	ten_2nd S2 = (ten_2nd) S_out;
 	for (int i=0; i < 3; i++)
 		for (int j=0; j < 3; j++)
 		{
@@ -538,7 +562,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 				std::terminate();
 		}
 
-	ten4 C4 = (ten4) CC_out;
+	ten_4th C4 = (ten_4th) CC_out;
 	for (int i=0; i < 3; i++)
 		for (int j=0; j < 3; j++)
 			for (int k=0; k < 3; k++)
