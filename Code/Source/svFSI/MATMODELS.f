@@ -46,7 +46,7 @@
       INTEGER(KIND=IKIND), INTENT(IN) :: nfd
       REAL(KIND=RKIND), INTENT(IN) :: F(nsd,nsd), fl(nsd,nfd), ya
       REAL(KIND=RKIND), INTENT(OUT) :: S(nsd,nsd), Dm(nsymd,nsymd)
-      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(25)
+      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(24)
       REAL(KIND=RKIND), INTENT(IN), OPTIONAL :: eVWP(nvwp)
 
       TYPE(stModelType) :: stM
