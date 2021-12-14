@@ -58,6 +58,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double hwaves = 2.0;
 	const double lo = 15.0;
 
+	// WSS from fluid
+	const double tau = eVWP[6];
+
 	const vec3d  X(eVWP[3], eVWP[4], eVWP[5]);
 	const vec3d  Xcl(0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z);		// center line
 	vec3d NX(X.x-Xcl.x,X.y-Xcl.y,X.z-Xcl.z);								// radial vector
@@ -70,6 +73,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	vec3d N[3];
 
 	// pointwise, consistent with mesh generated with Matlab script <NodesElementsAsy.m>
+	// todo: get fiber directions from fl
 	const vec3d n2(0.0, imper/100.0*rIo*hwaves*M_PI/lo*cos(hwaves*M_PI*X.z/lo), 1.0);
 	const vec3d n1(-NX.y, NX.x, NX.z);
 	N[2] = n2; N[2] = N[2]/sqrt(N[2]*N[2]);		// axial = d(Xcl)/d(z)
@@ -198,17 +202,20 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	double   Jo;
 	double  svo;
 	double phic;
+	double tauo;
 	mat3ds  smo;
 	mat3ds  sco;
 	mat3d   Fio;
 
-	// retrieve internal variables (1+1+1+6+6+9 = 24)
+	// retrieve internal variables (1+1+1+1+6+6+9 = 25)
 	if (mode == gr or mode == elastic)
 	{
 		Jo   = grInt[0];
 		svo  = grInt[1];
 		phic = grInt[2];
-		int k = 3;
+		tauo = grInt[3];
+		std::cout<<tauo<<std::endl;
+		int k = 4;
 		for (int i=0; i<3; i++)
 			for (int j=i; j<3; j++)
 			{
@@ -316,7 +323,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double lcp2 = (Gc*lpo)*(Gc*lpo);						// deposition stretch calculation (computational purposes)
 		const double lcn2 = (Gc*lno)*(Gc*lno);						// idem for symmetric
 
-		const double lr = (F*(Fio*N[0])).norm();						// lr -> 1 for F -> Fo
+//		const double lr = (F*(Fio*N[0])).norm();						// lr -> 1 for F -> Fo
 		const double lt = (F*(Fio*N[1])).norm();						// lt -> 1 for F -> Fo
 		const double lz = (F*(Fio*N[2])).norm();						// lz -> 1 for F -> Fo
 
@@ -344,14 +351,14 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		// compute current stresses
 
-		double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;				// rIrIo -> rIorIo = 1 for F -> Fo
+//		double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;				// rIrIo -> rIorIo = 1 for F -> Fo
 
 		mat3ds sNm = phim*smo;									// phim*smhato = phim*smo
 		mat3ds sNc = phic*sco;									// phic*schato = phic*sco
 
 		const mat3ds sNf = sNm + sNc;
 
-		const double Cratio = CB-CS*(EPS*pow(rIrIo,-3)-1.0);
+		const double Cratio = CB-CS*(EPS*tau/tauo-1.0);
 		mat3ds sNa; sNa.zero();
 		if (Cratio>0) sNa = phim*(1.0-exp(-Cratio*Cratio))/(1.0-exp(-CB*CB))*sao;
 
@@ -363,7 +370,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		const mat3ds Sx = Se + Sf + Sa;
 
-		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
+		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau/tauo-1.0)-KfKi*inflam);		// Ups = 1 -> p
 
 		S = Sx - J*p*Ci;
 
@@ -444,11 +451,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		cfss += dphiRm*(smxI+saxI) + dphiRc*scxI;
 
 		// contribution due to the ratio of vasocontrictors to vasodilators in the active stress
-		const tens4dmm saoxnrr = dyad1mm((R*sao*R.transpose()).sym(),tenr);
-		const tens4dmm saoxntt = dyad1mm((R*sao*R.transpose()).sym(),tent);
-
-		// 1/J * FoF : [ J * phim * 1/(1.0-exp(-CB*CB)) * (Ui*sao*Ui) x d(1-exp(-Cratio^2))/d(C/2) ] : (Ft)o(Ft)
-		const tens4dmm cass = phim * 6.0*Cratio*CS*EPS*pow(rIrIo,-4)*exp(-Cratio*Cratio)/(1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
+//		const tens4dmm saoxnrr = dyad1mm((R*sao*R.transpose()).sym(),tenr);
+//		const tens4dmm saoxntt = dyad1mm((R*sao*R.transpose()).sym(),tent);
+//
+//		// 1/J * FoF : [ J * phim * 1/(1.0-exp(-CB*CB)) * (Ui*sao*Ui) x d(1-exp(-Cratio^2))/d(C/2) ] : (Ft)o(Ft)
+//		const tens4dmm cass = phim * 6.0*Cratio*CS*EPS*pow(rIrIo,-4)*exp(-Cratio*Cratio)/(1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
 
 		// contribution due to change in Cauchy stresses at constituent level (orientation only, for now)
 		tens4dmm cpnss(0.0);
@@ -469,11 +476,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		const tens4dmm cess = tens4dmm(ce);							// ce in tens4dmm form
 
-		css = cess + cfss + cass + cpnss;
+		css = cess + cfss + cpnss;// + cass
 
 		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))
-						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss)
-						 - 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
+						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*tau/tauo-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss);
+//						 - 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
 		break;
 	}
 	case elastic:
@@ -516,6 +523,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		Jo = J;
 		svo = 1.0/3.0/J*S.dotdot(C);
 		phic = phico;
+		tauo = tau;
 		smo = 1.0/J*(u*(Sm*u)).sym();
 		sco = 1.0/J*(u*(Sc*u)).sym();
 		Fio = F.inverse();
@@ -523,7 +531,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		grInt[0] = Jo;
 		grInt[1] = svo;
 		grInt[2] = phic;
-		int k = 3;
+		grInt[3] = tauo;
+		int k = 4;
 		for (int i=0; i<3; i++)
 			for (int j=i; j<3; j++)
 			{
