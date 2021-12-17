@@ -1,4 +1,4 @@
-!
+//!
 ! Copyright (c) Stanford University, The Regents of the University of
 !               California, and others.
 !
@@ -45,7 +45,7 @@
      2   Dg(tDof,tnNo)
 
       INTEGER(KIND=IKIND) a, e, g, Ac, eNoN, cPhys, iFn, nFn
-      REAL(KIND=RKIND) w, Jac, grInt(24), ksix(nsd,nsd)
+      REAL(KIND=RKIND) w, Jac, grInt(25), ksix(nsd,nsd)
 
       INTEGER(KIND=IKIND), ALLOCATABLE :: ptr(:)
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
@@ -113,7 +113,7 @@
 
 !           retrieve g&r internal variables
             grInt(:) = 0._RKIND
-            IF (ALLOCATED(lM%grVo)) grInt(1:24) = lM%grVo(:,g,e)
+            IF (ALLOCATED(lM%grVn)) grInt(1:25) = lM%grVo(:,g,e)
 
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
@@ -136,7 +136,7 @@
             END IF
 
 !           Update g&r variables
-            IF (ALLOCATED(lM%grVo)) lM%grVn(:,g,e) = grInt(1:24)
+            IF (ALLOCATED(lM%grVn)) lM%grVo(:,g,e) = grInt(1:25)
 
          END DO ! g: loop
 
@@ -168,7 +168,7 @@
      2   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN),
      3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN)
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(6)
-      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(24), lR(dof,eNoN),
+      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(25), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
 
       INTEGER(KIND=IKIND) :: a, b, i, j, k
@@ -356,7 +356,7 @@
      2   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(2,eNoN),
      3   fN(2,nFn), pS0l(3,eNoN), ya_l(eNoN)
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(3)
-      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(24), lR(dof,eNoN),
+      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(25), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
 
       INTEGER(KIND=IKIND) :: a, b, i, j
