@@ -137,6 +137,7 @@
 
 !           Update g&r variables
             IF (ALLOCATED(lM%grVn)) lM%grVo(:,g,e) = grInt(1:25)
+            IF (ALLOCATED(lM%grVn)) lM%grVn(:,g,e) = grInt(1:25)
 
          END DO ! g: loop
 
