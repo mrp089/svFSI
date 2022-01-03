@@ -120,7 +120,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 //	double KsKi = 0.35;
 //	double KsKi = 0.1;
-	double KsKi = 0.01;
+//	double KsKi = 0.03;
+	double KsKi = 0.0;
 	const double EPS  = 1.0+(1.0-1.0)*(sgr-1.0)/(endtime-1.0);
 
 	const double KfKi   = 1.0;
@@ -129,6 +130,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double aexp = 0.0;									// 1.0 (KNOCKOUTS | TEVG) | 0.0 (CMAME | TORTUOSITY)
 
 	const double delta = 0.0;
+
+	// hyperelastic incompressibility
+	const double Jdep = 0.9999;
+	const double lm = 1.0e3*mu;
 
 	// select G&R mode
 	enum GR_Mode { prestress, gr, elastic };
@@ -141,7 +146,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		mode = elastic;
 
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
-	const bool aneurysm = true;
+	const bool aneurysm = false;
 	const bool aneurysm_asym = false;
 	if (aneurysm and mode == gr) {
 		// location of aneurysm (= middle)
@@ -199,14 +204,23 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	tens4dmm css;
 	mat3ds sfpro;
 
-	// retrieve internal variables (1+1+1+1+6+6+9 = 25)
+	// retrieve internal variables 2*(1+1+1+1+6+6+9) = 50
 	double   Jo;
+	double   Jh;
 	double  svo;
+	double  svh;
 	double phic;
+	double phich;
 	double tauo;
+	double tauh;
 	mat3ds  smo;
+	mat3ds  smh;
 	mat3ds  sco;
+	mat3ds  sch;
 	mat3d   Fio;
+	mat3d   Fih;
+
+	// retrieve prestress
 	if (mode == gr or mode == elastic)
 	{
 		Jo   = grInt[0];
@@ -234,15 +248,40 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 			}
 	}
 
+	// retrieve frozen g&r
+	if (mode == elastic)
+	{
+		Jh    = grInt[25];
+		svh   = grInt[26];
+		phich = grInt[27];
+		tauh  = grInt[28];
+		int k = 29;
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				smh(i,j) = grInt[k];
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				sch(i,j) = grInt[k];
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=0; j<3; j++)
+			{
+				Fih(i,j) = grInt[k];
+				k++;
+			}
+	}
+
 	// select material evaluation according to G&R mode
 	switch(mode)
 	{
 	case prestress:
 	{
 		// compute stress
-		const double Jdep = 0.9999;
-		const double lm = 1.0e3*mu;
-
 		const double lt = (F*N[1]).norm();
 		const double lz = (F*N[2]).norm();
 		const double lp = (F*Np).norm();
@@ -378,7 +417,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		S = Sx - J*p*Ci;
 
-		//compute tangent
+		// compute tangent
 
 		// compute current stresses
 		sNm = smo;										// phim*smhato = phim*smo
@@ -490,7 +529,65 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	}
 	case elastic:
 	{
-		// todo: implement purely elastic response
+		// compute stress
+		double phimh = phimo/(Jh/Jo)*pow(Jh/Jo*phich/phico,eta);	// evolved homeostatic phimh from <Jh*phimh/phimo=(Jh*phich/phico)^eta>
+
+		double lrh = (Fih.inverse()*(Fio*N[0])).norm();				// lrh -> 1 for Fh -> Fo
+		double lth = (Fih.inverse()*(Fio*N[1])).norm();				// lth -> 1 for Fh -> Fo
+		double lzh = (Fih.inverse()*(Fio*N[2])).norm();				// lzh -> 1 for Fh -> Fo
+
+		alpha = atan(tan(alpha)*pow(lth/lzh,aexp));					// remodeled (evolved homeostatic) alpha at h (alphah)
+		Np = N[1]*sin(alpha)+N[2]*cos(alpha);						// update diagonal fiber vector
+		Nn = N[1]*sin(alpha)-N[2]*cos(alpha);						// idem for symmetric
+
+		mat3ds Uo; mat3d Ro; (Fio.inverse()).right_polar(Ro,Uo);	// Uo from polar decomposition
+		mat3ds Uh; mat3d Rh; (Fih.inverse()).right_polar(Rh,Uh);	// Uh from polar decomposition
+
+		double lt = (F*(Uh.inverse()*(Uo*N[1]))).norm();
+		double lz = (F*(Uh.inverse()*(Uo*N[2]))).norm();
+		double lp = (F*(Uh.inverse()*(Uo*Np))).norm();
+		double ln = (F*(Uh.inverse()*(Uo*Nn))).norm();
+
+		double lmt2 = (Gm*lt)*(Gm*lt);
+		double lct2 = (Gc*lt)*(Gc*lt);
+		double lcz2 = (Gc*lz)*(Gc*lz);
+		double lcp2 = (Gc*lp)*(Gc*lp);
+		double lcn2 = (Gc*ln)*(Gc*ln);
+
+		// compute stress
+		// passive | consistent with: Sth = Jh*(Ui*sNt*Ui), sNt = phih/phio*sto, sto = 1.0/Jo*(Uo*(Sto*Uo)), Sto = phio*c*(lt2-1.0)*exp(d*(lt2-1.0)*(lt2-1.0))*(Gt*Gt)*dyad(N[1])
+
+		mat3ds Sm = (Jh/Jo*phimh)*(cm*(lmt2-1.0)*exp(dm*(lmt2-1.0)*(lmt2-1.0))*(Gm*Gm)*dyad(Uh.inverse()*(Uo*N[1])));
+		mat3ds Sc = (Jh/Jo*phich)*(cc*(lct2-1.0)*exp(dc*(lct2-1.0)*(lct2-1.0))*(Gc*Gc)*dyad(Uh.inverse()*(Uo*N[1]))*betat +
+								   cc*(lcz2-1.0)*exp(dc*(lcz2-1.0)*(lcz2-1.0))*(Gc*Gc)*dyad(Uh.inverse()*(Uo*N[2]))*betaz +
+								   cc*(lcp2-1.0)*exp(dc*(lcp2-1.0)*(lcp2-1.0))*(Gc*Gc)*dyad(Uh.inverse()*(Uo* Np ))*betad +
+								   cc*(lcn2-1.0)*exp(dc*(lcn2-1.0)*(lcn2-1.0))*(Gc*Gc)*dyad(Uh.inverse()*(Uo* Nn ))*betad );
+
+		mat3ds Sx = Se + Sm + Sc;
+
+		S = Sx + Ci*lm*log(Jdep*J/Jh);
+
+		// compute tangent
+		mat3ds tent = dyad(F*(Uh.inverse()*(Uo*N[1])));
+		mat3ds tenz = dyad(F*(Uh.inverse()*(Uo*N[2])));
+		mat3ds tenp = dyad(F*(Uh.inverse()*(Uo*Np)));
+		mat3ds tenn = dyad(F*(Uh.inverse()*(Uo*Nn)));
+
+		// passive
+		tens4ds cf = (Jh/Jo*phimh)*(2.0*cm*(1.0+2.0*dm*(lmt2-1.0)*(lmt2-1.0))*exp(dm*(lmt2-1.0)*(lmt2-1.0))*pow(Gm,4)*dyad1s(tent))      +
+				(Jh/Jo*phich)*(2.0*cc*(1.0+2.0*dc*(lct2-1.0)*(lct2-1.0))*exp(dc*(lct2-1.0)*(lct2-1.0))*pow(Gc,4)*dyad1s(tent)*betat +
+						2.0*cc*(1.0+2.0*dc*(lcz2-1.0)*(lcz2-1.0))*exp(dc*(lcz2-1.0)*(lcz2-1.0))*pow(Gc,4)*dyad1s(tenz)*betaz +
+						2.0*cc*(1.0+2.0*dc*(lcp2-1.0)*(lcp2-1.0))*exp(dc*(lcp2-1.0)*(lcp2-1.0))*pow(Gc,4)*dyad1s(tenp)*betad +
+						2.0*cc*(1.0+2.0*dc*(lcn2-1.0)*(lcn2-1.0))*exp(dc*(lcn2-1.0)*(lcn2-1.0))*pow(Gc,4)*dyad1s(tenn)*betad);
+
+		cf /= J;
+
+		tens4ds c = ce + cf;
+
+		c += lm/J*(IxI-2.0*log(Jdep*J/Jh)*IoI);
+
+		css = tens4dmm(c);		// c in tens4dss form
+
 		break;
 	}
 	}
@@ -522,7 +619,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 						std::terminate();
 				}
 
-	// update internal variables
+	// store prestress state
 	if (mode == prestress)
 	{
 		Jo = J;
@@ -553,6 +650,40 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 			for (int j=0; j<3; j++)
 			{
 				grInt[k] = Fio(i,j);
+				k++;
+			}
+	}
+	// store g&r state
+	if (mode == gr)
+	{
+		Jh = J;
+		svh = 1.0/3.0/J*S.dotdot(C);
+		phich = phico;
+		smh = 1.0/J*(u*(Sm*u)).sym();
+		sch = 1.0/J*(u*(Sc*u)).sym();
+		Fih = F.inverse();
+
+		grInt[25] = Jh;
+		grInt[26] = svh;
+		grInt[27] = phich;
+		grInt[28] = tau;
+		int k = 29;
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				grInt[k] = smh(i,j);
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=i; j<3; j++)
+			{
+				grInt[k] = sch(i,j);
+				k++;
+			}
+		for (int i=0; i<3; i++)
+			for (int j=0; j<3; j++)
+			{
+				grInt[k] = Fih(i,j);
 				k++;
 			}
 	}
