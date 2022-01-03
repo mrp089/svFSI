@@ -521,7 +521,7 @@
       REAL(KIND=RKIND) w, Jac, detF, Je, ya, Ja, elM, nu, lambda, mu,
      2   p, trS, vmises, xi(nsd), xi0(nsd), xp(nsd), ed(nsymd),
      3   Im(nsd,nsd), F(nsd,nsd), C(nsd,nsd), Eg(nsd,nsd), P1(nsd,nsd),
-     4   S(nsd,nsd), sigma(nsd,nsd), Dm(nsymd,nsymd), grInt(25),
+     4   S(nsd,nsd), sigma(nsd,nsd), Dm(nsymd,nsymd), grInt(nGrInt),
      5   eVWP(nvwp)
       TYPE(fsType) :: fs
 
@@ -645,7 +645,7 @@
 
 !           retrieve g&r internal variables
             grInt(:) = 0._RKIND
-            IF (ALLOCATED(lM%grVn)) grInt(1:25) = lM%grVn(:,g,e)
+            IF (ALLOCATED(lM%grVn)) grInt(1:nGrInt) = lM%grVn(:,g,e)
 
             ed = 0._RKIND
             IF (cPhys .EQ. phys_lElas) THEN

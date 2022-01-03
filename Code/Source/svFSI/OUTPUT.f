@@ -249,7 +249,7 @@
             IF (ALLOCATED(msh(iM)%grVn)) THEN
                DO e=1, msh(iM)%nEl
                   DO g=1, msh(iM)%nG
-                     DO i=1, 25
+                     DO i=1, nGrInt
                         WRITE(fid) msh(iM)%grVn(i,g,e)
                      END DO
                   END DO

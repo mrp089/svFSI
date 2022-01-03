@@ -265,8 +265,8 @@
             DO a=1, msh(iM)%nEl
                iDmn = DOMAIN(msh(iM), iEq, a)
                IF (eq(iEq)%dmn(iDmn)%stM%isoType .EQ. stGR_equi) THEN
-                  ALLOCATE(msh(iM)%grVo(25,msh(iM)%nG,msh(iM)%nEl))
-                  ALLOCATE(msh(iM)%grVn(25,msh(iM)%nG,msh(iM)%nEl))
+                  ALLOCATE(msh(iM)%grVo(nGrInt,msh(iM)%nG,msh(iM)%nEl))
+                  ALLOCATE(msh(iM)%grVn(nGrInt,msh(iM)%nG,msh(iM)%nEl))
                   msh(iM)%grVo = 0._RKIND
                   msh(iM)%grVn = 0._RKIND
                   EXIT
@@ -649,7 +649,7 @@
             IF (ALLOCATED(msh(iM)%grVn)) THEN
                DO e=1, msh(iM)%nEl
                   DO g=1, msh(iM)%nG
-                     DO i=1, 25
+                     DO i=1, nGrInt
                         READ(fid) msh(iM)%grVo(i,g,e)
                      END DO
                   END DO

@@ -905,6 +905,8 @@
 !     Number of variable wall properties to read in from mesh
       INTEGER(KIND=IKIND) nvwp
 !     ---------------------------------------------------------------
+!     Number of internal G&R variables
+      INTEGER(KIND=IKIND) :: nGrInt = 50
 
 !     REAL VARIABLES
 !     Time step size
