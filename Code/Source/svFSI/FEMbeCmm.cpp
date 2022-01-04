@@ -118,10 +118,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double CB = sqrt(log(2.0));							// such that (1-exp(-CB^2)) = 0.5
 	const double CS = 0.5*CB * 1.0;							// such that (1-exp( -C^2)) = 0.0 for lt = 1/(1+CB/CS)^(1/3) = 0.7 and (1-exp(-C^2)) = 0.75 for lt = 2.0
 
-//	double KsKi = 0.35;
+	double KsKi = 0.35;
 //	double KsKi = 0.1;
 //	double KsKi = 0.03;
-	double KsKi = 0.0;
+//	double KsKi = 0.0;
 	const double EPS  = 1.0+(1.0-1.0)*(sgr-1.0)/(endtime-1.0);
 
 	const double KfKi   = 1.0;
@@ -144,6 +144,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		mode = gr;
 	else
 		mode = elastic;
+
+	// couple wss
+	const bool coup_wss = false;
 
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
 	const bool aneurysm = false;
@@ -388,11 +391,15 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		// compute current stresses
 
-//		double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;				// rIrIo -> rIorIo = 1 for F -> Fo
+		const double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;				// rIrIo -> rIorIo = 1 for F -> Fo
 		const double tau_eps = 1.0e-3;
 //		const double tau_ratio = (tau + tau_eps) / (tauo + tau_eps);
 		const double tau_lim = 3.0;
-		const double tau_ratio = std::min(tau/tauo, tau_lim);
+		double tau_ratio;
+		if (coup_wss)
+			tau_ratio = std::min(tau/tauo, tau_lim);
+		else
+			tau_ratio = pow(rIrIo,-3);
 
 		mat3ds sNm = phim*smo;									// phim*smhato = phim*smo
 		mat3ds sNc = phic*sco;									// phic*schato = phic*sco
@@ -498,7 +505,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const tens4dmm saoxntt = dyad1mm((R*sao*R.transpose()).sym(),tent);
 
 		// 1/J * FoF : [ J * phim * 1/(1.0-exp(-CB*CB)) * (Ui*sao*Ui) x d(1-exp(-Cratio^2))/d(C/2) ] : (Ft)o(Ft)
-//		const tens4dmm cass = phim * 6.0*Cratio*CS*EPS*pow(rIrIo,-4)*exp(-Cratio*Cratio)/(1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
+		const tens4dmm cass = phim * 6.0*Cratio*CS*EPS*pow(rIrIo,-4)*exp(-Cratio*Cratio)/(1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
 
 		// contribution due to change in Cauchy stresses at constituent level (orientation only, for now)
 		tens4dmm cpnss(0.0);
@@ -520,11 +527,17 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const tens4dmm cess = tens4dmm(ce);							// ce in tens4dmm form
 
 		css = cess + cfss + cpnss;// + cass
+		if (!coup_wss)
+			css += cass;
 
 		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))
 //						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss)
 //						 - 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
 						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss);
+
+		if (!coup_wss)
+			css -= 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
+
 		break;
 	}
 	case elastic:
@@ -656,28 +669,23 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// store g&r state
 	if (mode == gr)
 	{
-		Jh = J;
-		svh = 1.0/3.0/J*S.dotdot(C);
-		phich = phico;
-		smh = 1.0/J*(u*(Sm*u)).sym();
-		sch = 1.0/J*(u*(Sc*u)).sym();
 		Fih = F.inverse();
 
-		grInt[25] = Jh;
-		grInt[26] = svh;
-		grInt[27] = phich;
+		grInt[25] = J;
+		grInt[26] = svo;
+		grInt[27] = phico;
 		grInt[28] = tau;
 		int k = 29;
 		for (int i=0; i<3; i++)
 			for (int j=i; j<3; j++)
 			{
-				grInt[k] = smh(i,j);
+				grInt[k] = smo(i,j);
 				k++;
 			}
 		for (int i=0; i<3; i++)
 			for (int j=i; j<3; j++)
 			{
-				grInt[k] = sch(i,j);
+				grInt[k] = sco(i,j);
 				k++;
 			}
 		for (int i=0; i<3; i++)
