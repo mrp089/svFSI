@@ -184,8 +184,8 @@
       fb(2)   = eq(cEq)%dmn(cDmn)%prop(f_y)
       fb(3)   = eq(cEq)%dmn(cDmn)%prop(f_z)
       amd     = eq(cEq)%am*rho + eq(cEq)%af*eq(cEq)%gam*dt*dmp
-!      afl     = eq(cEq)%af*eq(cEq)%beta*dt*dt
-      afl     = eq(cEq)%af*eq(cEq)%beta
+      afl     = eq(cEq)%af*eq(cEq)%beta*dt*dt
+!      afl     = eq(cEq)%af*eq(cEq)%beta
       i       = eq(cEq)%s
       j       = i + 1
       k       = j + 1
