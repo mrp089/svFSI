@@ -53,7 +53,7 @@
          IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
          ALLOCATE(tmpV(maxnsd,msh(iM)%nNo))
          IF (outGrp.EQ.outGrp_WSS .OR. outGrp.EQ.outGrp_trac) THEN
-            CALL BPOST(msh(iM), tmpV, lY, lD, outGrp)
+            CALL BPOST(msh(iM), tmpV, tmpVe, lY, lD, outGrp)
             DO a=1, msh(iM)%nNo
                Ac = msh(iM)%gN(a)
                res(:,Ac) = tmpV(:,a)
@@ -323,12 +323,12 @@
 !     General purpose routine for post processing outputs at the
 !     faces. Currently this calculates WSS, which is t.n - (n.t.n)n
 !     Here t is stress tensor: t = \mu (grad(u) + grad(u)^T)
-      SUBROUTINE BPOST(lM, res, lY, lD, outGrp)
+      SUBROUTINE BPOST(lM, res, resE, lY, lD, outGrp)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
       TYPE(mshType), INTENT(INOUT) :: lM
-      REAL(KIND=RKIND), INTENT(OUT) :: res(maxnsd,lM%nNo)
+      REAL(KIND=RKIND), INTENT(OUT) :: res(maxnsd,lM%nNo), resE(lM%nEl)
       REAL(KIND=RKIND), INTENT(IN) :: lY(tDof,tnNo), lD(tDof,tnNo)
       INTEGER(KIND=IKIND), INTENT(IN) :: outGrp
 
@@ -478,7 +478,11 @@
                   sA(Ac)   = sA(Ac)   + w*N(a)
                   sF(:,Ac) = sF(:,Ac) + w*N(a)*lRes
                END DO
+
+!     Store element quantities
+               resE(Ec) = resE(Ec) + NORM(lRes)
             END DO
+            resE(Ec) = resE(Ec) / lM%nG
          END DO
       END DO
 

@@ -548,9 +548,21 @@
                   END DO
 
                CASE (outGrp_WSS, outGrp_trac)
-                  CALL BPOST(msh(iM), tmpV, lY, lD, oGrp)
+                  IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
+                  IF (ALLOCATED(tmpVe)) DEALLOCATE(tmpVe)
+                  ALLOCATE(tmpV(l,msh(iM)%nNo), tmpVe(msh(iM)%nEl))
+                  tmpVe = 0._RKIND
+
+!     nodal wss
+                  CALL BPOST(msh(iM), tmpV, tmpVe, lY, lD, oGrp)
                   DO a=1, msh(iM)%nNo
                      d(iM)%x(is:ie,a) = tmpV(1:l,a)
+                  END DO
+!     element wss
+                  nOute = nOute + 1
+                  outNamesE(nOute) = "E_WSS"
+                  DO a=1, msh(iM)%nEl
+                     d(iM)%xe(nOute,a) = tmpVe(a)
                   END DO
 
                CASE (outGrp_vort, outGrp_eFlx, outGrp_hFlx,
@@ -591,6 +603,7 @@
 
                CASE (outGrp_fA)
                   IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
+                  IF (ALLOCATED(tmpVe)) DEALLOCATE(tmpVe)
                   ALLOCATE(tmpV(1,msh(iM)%nNo))
                   tmpV = 0._RKIND
                   IF (msh(iM)%nFn .EQ. 2)
@@ -603,6 +616,7 @@
 
                CASE (outGrp_stress, outGrp_cauchy, outGrp_mises)
                   IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
+                  IF (ALLOCATED(tmpVe)) DEALLOCATE(tmpVe)
                   ALLOCATE(tmpV(l,msh(iM)%nNo), tmpVe(msh(iM)%nEl))
                   tmpV  = 0._RKIND
                   tmpVe = 0._RKIND
@@ -632,6 +646,7 @@
 
                CASE (outGrp_J, outGrp_F, outGrp_strain)
                   IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
+                  IF (ALLOCATED(tmpVe)) DEALLOCATE(tmpVe)
                   ALLOCATE(tmpV(l,msh(iM)%nNo), tmpVe(msh(iM)%nEl))
                   tmpV  = 0._RKIND
                   tmpVe = 0._RKIND
@@ -654,6 +669,7 @@
 
                CASE (outGrp_divV)
                   IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
+                  IF (ALLOCATED(tmpVe)) DEALLOCATE(tmpVe)
                   ALLOCATE(tmpV(1,msh(iM)%nNo))
                   tmpV = 0._RKIND
                   CALL DIVPOST(msh(iM), tmpV, lY, lD, iEq)
