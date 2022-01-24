@@ -461,8 +461,9 @@
                outDof = outDof + eq(iEq)%output(iOut)%l
             END IF
 
-            IF (oGrp.EQ.outGrp_J .OR. oGrp.EQ.outGrp_Mises)
-     2         nOute = nOute + 1
+            IF (oGrp.EQ.outGrp_J .OR. oGrp.EQ.outGrp_Mises
+     2          .OR. oGrp.EQ.outGrp_WSS)
+     3         nOute = nOute + 1
          END DO
       END DO
 
@@ -564,6 +565,8 @@
                   DO a=1, msh(iM)%nEl
                      d(iM)%xe(nOute,a) = tmpVe(a)
                   END DO
+
+                  DEALLOCATE(tmpV,tmpVe)
 
                CASE (outGrp_vort, outGrp_eFlx, outGrp_hFlx,
      2            outGrp_stInv, outGrp_vortex, outGrp_Visc)
@@ -714,7 +717,7 @@
          RETURN
       END IF
 
-      DEALLOCATE(tmpV)
+      IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
       ALLOCATE(tmpV(maxnsd, nNo))
 
 !     Writing to vtu file (master only)
@@ -830,6 +833,7 @@
 !     Write element Jacobian and von Mises stress if necessary
       DO l=1, nOute
          ne = ne + 1
+         IF (ALLOCATED(tmpVe)) DEALLOCATE(tmpVe)
          ALLOCATE(tmpVe(nEl))
          tmpVe = 0._RKIND
          Ec = 0
