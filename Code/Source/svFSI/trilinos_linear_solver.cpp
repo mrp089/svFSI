@@ -470,7 +470,7 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
 
   //call solver code which assembles K and F for shared processors
   bool flagFassem = false;
-  trilinos_solve_direct_(x, dirW, resNorm, initNorm, numIters,
+  trilinos_solve_(x, dirW, resNorm, initNorm, numIters,
           solverTime, dB, converged, lsType,
           relTol, maxIters, kspace, precondType, flagFassem);
 
