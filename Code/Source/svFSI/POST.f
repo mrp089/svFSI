@@ -52,6 +52,7 @@
       DO iM=1, nMsh
          IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
          ALLOCATE(tmpV(maxnsd,msh(iM)%nNo))
+         ALLOCATE(tmpVe(msh(iM)%nEl))
          IF (outGrp.EQ.outGrp_WSS .OR. outGrp.EQ.outGrp_trac) THEN
             CALL BPOST(msh(iM), tmpV, tmpVe, lY, lD, outGrp)
             DO a=1, msh(iM)%nNo
