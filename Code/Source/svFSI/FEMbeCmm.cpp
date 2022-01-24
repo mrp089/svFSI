@@ -47,7 +47,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double t = *time;
 
 	const double pretime = 1.0;
-	const double endtime = 11.0;							// 11.0 | 31.0-32.0 (TEVG)
+	const double endtime = 99999.0;							// 11.0 | 31.0-32.0 (TEVG)
 
 	const double eps = std::numeric_limits<double>::epsilon();
 	const double partialtime = endtime;			// partialtime <= endtime | 10.0 | 10.4 (for TI calculation)
@@ -121,6 +121,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	double KsKi = 0.35;
 //	double KsKi = 0.1;
 //	double KsKi = 0.03;
+//	double KsKi = 0.09;
 //	double KsKi = 0.0;
 	const double EPS  = 1.0+(1.0-1.0)*(sgr-1.0)/(endtime-1.0);
 
@@ -395,12 +396,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// compute current stresses
 
 		const double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;				// rIrIo -> rIorIo = 1 for F -> Fo
-		const double tau_eps = 1.0e-3;
-//		const double tau_ratio = (tau + tau_eps) / (tauo + tau_eps);
-		const double tau_lim = 3.0;
 		double tau_ratio;
 		if (coup_wss)
-			tau_ratio = std::min(tau/tauo, tau_lim);
+			tau_ratio = tau/tauo;
 		else
 			tau_ratio = pow(rIrIo,-3);
 
@@ -421,6 +419,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const mat3ds Sa = J*(ui*sNa*ui).sym();						// J*Ui*sNa*Ui
 
 		const mat3ds Sx = Se + Sf + Sa;
+
+		// todo: extract wss from Sx
+		// todo: solve for p with local newton??
+
 
 //		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
 		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
@@ -530,8 +532,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const tens4dmm cess = tens4dmm(ce);							// ce in tens4dmm form
 
 		css = cess + cfss + cpnss;// + cass
-		if (!coup_wss)
-			css += cass;
 
 		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))
 //						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss)
@@ -539,7 +539,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss);
 
 		if (!coup_wss)
+		{
+			css += cass;
 			css -= 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
+		}
 
 		break;
 	}
