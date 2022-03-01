@@ -355,6 +355,8 @@
          REAL(KIND=RKIND), ALLOCATABLE :: N(:,:)
 !        Normal vector to each nodal point
          REAL(KIND=RKIND), ALLOCATABLE :: nV(:,:)
+!        Normal vector to each element
+         REAL(KIND=RKIND), ALLOCATABLE :: enV(:,:)
 !        Shape functions derivative at Gauss points
          REAL(KIND=RKIND), ALLOCATABLE :: Nx(:,:,:)
 !        Second derivatives of shape functions - for shells & IGA

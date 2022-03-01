@@ -340,7 +340,7 @@
       TYPE(fsType) :: fsP
 
       REAL(KIND=RKIND), ALLOCATABLE :: sA(:), sF(:,:), gnV(:,:),
-     2   lnV(:,:), xl(:,:), ul(:,:), pl(:), N(:), Nx(:,:)
+     2   lnV(:,:), xl(:,:), ul(:,:), pl(:), N(:), Nx(:,:), enV(:)
 
       IF (outGrp.NE.outGrp_WSS .AND. outGrp.NE.outGrp_trac) err =
      2   "Invalid output group. Correction is required in BPOST"
@@ -351,10 +351,11 @@
       IF (eq(iEq)%phys .EQ. phys_FSI) FSIeq = .TRUE.
 
       ALLOCATE (sA(tnNo), sF(maxnsd,tnNo), xl(nsd,eNoN), ul(nsd,eNoN),
-     2   gnV(nsd,tnNo), lnV(nsd,eNoN), N(eNoN), Nx(nsd,eNoN))
+     2   gnV(nsd,tnNo), lnV(nsd,eNoN), N(eNoN), Nx(nsd,eNoN), enV(nsd))
       sA   = 0._RKIND
       sF   = 0._RKIND
       gnV  = 0._RKIND
+      enV  = 0._RKIND
       lRes = 0._RKIND
 
 !     First creating the norm field
@@ -388,12 +389,16 @@
       END IF
       ALLOCATE(pl(fsP%eNoN))
 
-      DO iFa=1, lM%nFa
+!     fixme: have user indicate what boundary face is?
+!      DO iFa=1, lM%nFa
+      DO iFa=1, 1
          DO e=1, lM%fa(iFa)%nEl
             Ec = lM%fa(iFa)%gE(e)
             cDmn = DOMAIN(lM, iEq, Ec)
             IF (cDmn .EQ. 0) CYCLE
             IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, Ec)
+!     Get element normal
+            enV(:) = lM%fa(iFa)%enV(:,e)
 
 !     Finding the norm for all the nodes of this element, including
 !     those that don't belong to this face, which will be inerpolated
@@ -401,7 +406,9 @@
             nV = 0._RKIND
             DO a=1, eNoN
                Ac       = lM%IEN(a,Ec)
-               lnV(:,a) = gnV(:,Ac)
+!     fixme: switch between element and nodal normal
+!               lnV(:,a) = gnV(:,Ac)
+               lnV(:,a) = enV
                nV       = nV + lnV(:,a)
                xl(:,a)  = x(:,Ac)
                IF (FSIeq) THEN
@@ -481,9 +488,8 @@
                END DO
 
 !     Store element quantities
-               resE(Ec) = resE(Ec) + NORM(lRes)
+               resE(Ec) = resE(Ec) + SQRT(NORM(lRes)) / lM%nG
             END DO
-            resE(Ec) = resE(Ec) / lM%nG
          END DO
       END DO
 

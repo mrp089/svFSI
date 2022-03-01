@@ -164,7 +164,8 @@
 
       LOGICAL flag
       INTEGER(KIND=IKIND) a, b, e, g, i, Ac, Bc, Ec
-      REAL(KIND=RKIND) area, sln, nV(nsd), v(nsd), xXi(nsd,nsd-1)
+      REAL(KIND=RKIND) area, sln, nV(nsd), enV(nsd), v(nsd),
+     2                 xXi(nsd,nsd-1)
       TYPE(fsType) :: fs
 
       LOGICAL, ALLOCATABLE :: setIt(:)
@@ -185,6 +186,9 @@
 !     Compute face normals at nodes
       IF (ALLOCATED(lFa%nV)) DEALLOCATE(lFa%nV)
       ALLOCATE(lFa%nV(nsd,lFa%nNo), sV(nsd,tnNo))
+!     Compute face normals at elements
+      IF (ALLOCATED(lFa%enV)) DEALLOCATE(lFa%enV)
+      ALLOCATE(lFa%enV(nsd,lFa%nEl))
       sV = 0._RKIND
 
       flag = .FALSE.
@@ -206,6 +210,8 @@
                   sV(:,Ac) = sV(:,Ac) + nV*lFa%N(a,g)*lFa%w(g)
                END DO
             END DO
+!           Store element normal
+            lFa%enV(:,e) = nV(:) / SQRT(NORM(nV))
          END DO
 
       ELSE

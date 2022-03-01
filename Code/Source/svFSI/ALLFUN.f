@@ -1123,6 +1123,7 @@
       IF (ALLOCATED(lFa%xi))     DEALLOCATE(lFa%xi)
       IF (ALLOCATED(lFa%N))      DEALLOCATE(lFa%N)
       IF (ALLOCATED(lFa%nV))     DEALLOCATE(lFa%nV)
+      IF (ALLOCATED(lFa%enV))    DEALLOCATE(lFa%enV)
       IF (ALLOCATED(lFa%Nx))     DEALLOCATE(lFa%Nx)
       IF (ALLOCATED(lFa%Nxx))    DEALLOCATE(lFa%Nxx)
 
