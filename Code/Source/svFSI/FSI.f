@@ -46,7 +46,7 @@
 
       LOGICAL :: vmsStab
       INTEGER(KIND=IKIND) a, e, g, l, Ac, eNoN, cPhys, iFn, nFn
-      REAL(KIND=RKIND) w, Jac, ksix(nsd,nsd)
+      REAL(KIND=RKIND) w, Jac, ksix(nsd,nsd), grInt(nGrInt)
       TYPE(fsType) :: fs(2)
 
       INTEGER(KIND=IKIND), ALLOCATABLE :: ptr(:)
@@ -154,6 +154,10 @@
             END IF
             w = fs(1)%w(g) * Jac
 
+!           retrieve g&r internal variables
+            grInt(:) = 0._RKIND
+            IF (ALLOCATED(lM%grVn)) grInt(1:nGrInt) = lM%grVo(:,g,e)
+
             IF (nsd .EQ. 3) THEN
                SELECT CASE (cPhys)
                CASE (phys_fluid)
@@ -167,7 +171,8 @@
 
                CASE (phys_struct)
                   CALL STRUCT3D(fs(1)%eNoN, nFn, w, fs(1)%N(:,g), Nwx,
-     2               al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lR, lK, lVWP)
+     2               al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lR, lK,
+     3               grInt, lVWP)
 
                CASE (phys_ustruct)
                   CALL USTRUCT3D_M(vmsStab, fs(1)%eNoN, fs(2)%eNoN, nFn,
