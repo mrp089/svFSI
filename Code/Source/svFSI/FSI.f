@@ -54,7 +54,7 @@
      2   dl(:,:), bfl(:,:), fN(:,:), pS0l(:,:), pSl(:), ya_l(:),
      3   lR(:,:), lK(:,:,:), lKd(:,:,:), lVWP(:,:)
       REAL(KIND=RKIND), ALLOCATABLE :: xwl(:,:), xql(:,:), Nwx(:,:),
-     2   Nwxx(:,:), Nqx(:,:), wss(:,:), wsse(:)
+     2   Nwxx(:,:), Nqx(:,:)
 
       eNoN = lM%eNoN
       nFn  = lM%nFn
@@ -265,21 +265,6 @@
          END IF
 #endif
       END DO ! e: loop
-
-!     calculate wss for g&r
-      IF (cPhys .EQ. phys_struct) THEN
-            WRITE(*,*) "struct"
-      END IF
-      IF (cPhys .EQ. phys_fluid) THEN
-          IF (ALLOCATED(wss)) DEALLOCATE(wss)
-          IF (ALLOCATED(wsse)) DEALLOCATE(wsse)
-          ALLOCATE(wss(3,eNoN))
-          ALLOCATE(wsse(lM%nEl))
-          CALL BPOST(lM, wss, wsse, yl, dl, outGrp_WSS)
-          WRITE(*,*) "fluid"
-!          WRITE(*,*) wss
-!          CALL EXIT(1)
-      END IF
 
       DEALLOCATE(ptr, xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lR, lK,
      2   lKd)
