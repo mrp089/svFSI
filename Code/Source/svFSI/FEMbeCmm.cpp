@@ -61,8 +61,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// get current and end times
 	const double t = *time;
 
-	const double pretime = 1.0;
-	const double endtime = 11.0;							// 11.0 | 31.0-32.0 (TEVG)
+	const double pretime = 5.0e-2;
+	const double endtime = 999.0;							// 11.0 | 31.0-32.0 (TEVG)
 
 	const double eps = std::numeric_limits<double>::epsilon();
 	const double partialtime = endtime;			// partialtime <= endtime | 10.0 | 10.4 (for TI calculation)
@@ -138,6 +138,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double CS = 0.5*CB * 1.0;							// such that (1-exp( -C^2)) = 0.0 for lt = 1/(1+CB/CS)^(1/3) = 0.7 and (1-exp(-C^2)) = 0.75 for lt = 2.0
 
 	const double KsKi = 0.35;
+
 	const double EPS  = 1.0+(1.0-1.0)*(sgr-1.0)/(endtime-1.0);
 
 	const double KfKi   = 1.0;
