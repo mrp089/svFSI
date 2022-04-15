@@ -60,6 +60,9 @@
 #include "AztecOO.h"
 #include "AztecOO_StatusTestResNorm.h"
 
+// Amesos includes
+#include "Amesos.h"
+
 // ML includes
 #include "ml_include.h"
 #include "ml_MultiLevelPreconditioner.h"
@@ -71,6 +74,7 @@
 #include "Ifpack_ILUT.h"
 #include "Ifpack_IC.h"
 #include "Ifpack_ICT.h"
+#include "EpetraExt_RowMatrixOut.h"
 
 /**************************************************************/
 /*                      Macro Definitions                     */
@@ -90,6 +94,7 @@
 #define TRILINOS_IC_PRECONDITIONER 706
 #define TRILINOS_ICT_PRECONDITIONER 707
 #define TRILINOS_ML_PRECONDITIONER 708
+#define TRILINOS_GR_PRECONDITIONER 710
 
 // Initialize all Epetra types we need separate from Fortran
 struct Trilinos
@@ -207,7 +212,18 @@ public:
           int &lsType, double &relTol, int &maxIters, int &kspace,
           int &precondType);
 
+  void trilinos_global_solve_dbc_(const double *Val, const double *RHS,
+          double *x, const double *dirW, double &resNorm, double &initNorm,
+          int &numIters, double &solverTime, double &dB, bool &converged,
+          int &lsType, double &relTol, int &maxIters, int &kspace,
+          int &precondType);
+
   void trilinos_solve_(double *x, const double *dirW, double &resNorm,
+          double &initNorm, int &numIters, double &solverTime,
+          double &dB, bool &converged, int &lsType, double &relTol,
+          int &maxIters, int &kspace, int &precondType, bool &isFassem);
+
+  void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
           double &initNorm, int &numIters, double &solverTime,
           double &dB, bool &converged, int &lsType, double &relTol,
           int &maxIters, int &kspace, int &precondType, bool &isFassem);
@@ -236,5 +252,9 @@ void printMatrixToFile();
 void printRHSToFile();
 
 void printSolutionToFile();
+
+void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, Epetra_Vector &X);
+
+void convert_block(Epetra_CrsMatrix &K, Epetra_Vector &F, Epetra_Vector &X);
 
 #endif //TRILINOS_LINEAR_SOLVER_H

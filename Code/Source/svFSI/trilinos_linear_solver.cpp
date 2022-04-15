@@ -476,6 +476,267 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
 
 } // trilinos_global_solve_
 
+void trilinos_global_solve_dbc_(const double *Val, const double *RHS, double *x,
+        const double *dirW, double &resNorm, double &initNorm, int &numIters,
+        double &solverTime, double &dB, bool &converged, int &lsType,
+        double &relTol, int &maxIters, int &kspace, int &precondType)
+{
+  int nnzCount = 0; //cumulate count of block nnz per rows
+  int count = 0;
+  int numValuesPerID = dof; //dof values per id pointer to dof
+  std::vector<double> values(dof*dof); // holds local matrix entries
+
+  double RHS_mod[Trilinos::K->NumGlobalBlockRows() * dof];
+  for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
+	  RHS_mod[i] = RHS[i];
+
+  //loop over block rows owned by current proc using localToGlobal index pointer
+  for (int i = 0; i < ghostAndLocalNodes; ++i)
+  {
+    int numEntries = nnzPerRow[i]; //block per of entries per row
+    //copy global stiffness values
+    int error = Trilinos::K->BeginReplaceGlobalValues(localToGlobalUnsorted[i],
+            numEntries, &globalColInd[nnzCount]);
+
+    //need to check if globalColInd and localToGlobal equal for block diag
+    if (error != 0)
+    {
+      std::cout << error << std::endl;
+      std::cout << "ERROR: Setting block row and block column of setting "
+                << "global values!"
+                << std::endl;
+      exit(1);
+    }
+
+    for (int l = 0; l < dof; ++l)
+  	  if(dirW[(localToGlobalUnsorted[i] - 1) * dof + l] < 0.5)
+  		RHS_mod[i*dof + l] = 0.0;
+
+    // Copy F values-loop over dof for bool
+    int num_block_rows = 1; //number of global block rows put in 1 at a time
+    error = Trilinos::F->ReplaceGlobalValues (num_block_rows,
+            &localToGlobalUnsorted[i], &numValuesPerID, &RHS_mod[i*dof]);
+
+    //check is bool true or false whether to give 0 if on diagonal 1
+    if (error != 0)
+    {
+      std::cout << "ERROR: Setting global vector values!" << std::endl;
+      exit(1);
+    }
+    for (int j = 0; j < numEntries; ++j)
+    {
+        int n_dbc = 0;
+        int row_dbc[3] = {0, 0, 0};
+      for (int l = 0; l < dof; ++l) //loop over dof for bool to contruct
+      {
+    	  //check for DBCs
+    	  int row = (localToGlobalUnsorted[i] - 1) * dof + l;
+    	  if(dirW[row] < 0.5)
+    	  {
+    		  row_dbc[n_dbc] = row;
+    		  n_dbc++;
+    	  }
+    	  for (int m = 0; m < dof; ++m)
+    		  values[l*dof + m] = Val[count*dof*dof + m*dof + l]; //transpose it
+
+      }
+      // if dof is DBC, set diagonal to one, row and col to zero
+      for (int i_dbc=0; i_dbc<n_dbc; ++i_dbc)
+    	  for (int l = 0; l < dof; ++l)
+    	  {
+    		  int row = (localToGlobalUnsorted[i] - 1) * dof + l;
+    		  if(row == row_dbc[i_dbc])
+    			  for (int m = 0; m < dof; ++m)
+    			  {
+    				  int col = (globalColInd[count] - 1 ) * dof + m;
+    				  if (row == col)
+    					  values[l*dof + m] = 1.0;
+    				  else
+    					  values[m*dof + l] = 0.0;
+    			  }
+    	  }
+
+      //submit square dof*dof blocks
+      error = Trilinos::K->SubmitBlockEntry(&values[0], dof, dof, dof);
+
+      if (error != 0)
+      {
+        std::cout << "ERROR: Inputting values of setting matrix global "
+                  << "values!" << std::endl;
+        exit(1);
+      }
+      count++;
+    }
+    error = Trilinos::K->EndSubmitEntries(); //for current block row
+    if (error != 0)
+    {
+      std::cout << "ERROR: End submitting block entries!" << std::endl;
+      exit(1);
+    }
+    nnzCount += numEntries;
+  }
+
+//  Epetra_MpiComm comm(MPI_COMM_WORLD);
+//  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * dof, 0, comm);
+//
+//  Epetra_Vector F(*map);
+//  Epetra_Vector X(*map);
+//  Epetra_CrsMatrix K(Copy, *map, 0);
+//
+//  convert_block(K, F, X);
+//  EpetraExt::RowMatrixToMatlabFile("K_gr_t0.mat", *((Epetra_RowMatrix *) &K));
+//
+////  Epetra_Vector Kdiag(*Trilinos::blockMap);
+////  Trilinos::K->ExtractDiagonalCopy(Kdiag);
+////  Kdiag.Print(std::cout);
+////  Trilinos::F->Print(std::cout);
+////  Trilinos::K->Print(std::cout);
+//  std::terminate();
+
+  //call solver code which assembles K and F for shared processors
+  bool flagFassem = false;
+  trilinos_solve_(x, dirW, resNorm, initNorm, numIters,
+          solverTime, dB, converged, lsType,
+          relTol, maxIters, kspace, precondType, flagFassem);
+
+} // trilinos_global_solve_
+
+void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
+        double &initNorm, int &numIters, double &solverTime, double &dB,
+        bool &converged, int &lsType, double &relTol, int &maxIters,
+        int &kspace, int &precondType, bool &isFassem)
+{
+  bool flagFassem = isFassem;
+
+  // Already filled from graph so does not need to call fillcomplete
+  // routine will sum in contributions from elements on shared nodes amongst
+  // processors
+  int error = Trilinos::K->GlobalAssemble(false);
+  if (error != 0)
+  {
+    std::cout << "ERROR: Global Assembling stiffness matrix" << std::endl;
+    exit(1);
+  }
+
+  //very important for performance-makes memory contiguous
+  Trilinos::K->OptimizeStorage();
+
+  flagFassem = true;
+  if (flagFassem)
+  {
+    //sum in values from shared nodes amongst the processors
+    error = Trilinos::F->GlobalAssemble();
+
+    if (error != 0)
+    {
+      std::cout << "ERROR: Global Assembling force vector" << std::endl;
+      exit(1);
+    }
+  }
+
+  // define a new map (without block structure in Trilinos::blockMap)
+  // Amesos does not support Epetra_CbrMatrix systems
+  Epetra_MpiComm comm(MPI_COMM_WORLD);
+  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * dof, 0, comm);
+
+  Epetra_Vector F(*map);
+  Epetra_Vector X(*map);
+  Epetra_CrsMatrix K(Copy, *map, 0);
+
+  // apply Dirichlet boundary conditions
+  applyDirichlet(dirW, K, F, X);
+
+  // set up linear problem
+  Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
+//  EpetraExt::RowMatrixToMatlabFile("K_direct.mat", *((Epetra_RowMatrix *) &K));
+//  std::terminate();
+
+  // Compute norm of preconditioned multivector F that we will be solving
+  // problem with
+  F.Norm2(&initNorm);
+
+  Amesos_BaseSolver * Solver;
+  Amesos Factory;
+  Solver = Factory.Create("Klu", Problem);
+  if (Solver == 0)
+  {
+    std::cout<<"ERROR: Specified solver is not available"<<std::endl;
+    exit(1);
+  }
+  if (Solver->GetProblem()->GetOperator() == 0)
+  {
+    std::cout<<"ERROR: Linear operator malformed"<<std::endl;
+    exit(1);
+  }
+  if (Solver->GetProblem()->CheckInput() != 0)
+  {
+    std::cout<<"Epetra_LinearProblem::CheckInput() non-zero: "<<Solver->GetProblem()->CheckInput()<<std::endl;
+    exit(1);
+  }
+  error = Solver->SymbolicFactorization();
+  if (error != 0)
+  {
+    std::cout<<"SymbolicFactorization non-zero: "<<error<<std::endl;
+    exit(1);
+  }
+  error = Solver->NumericFactorization();
+  if (error != 0)
+  {
+    std::cout<<"NumericFactorization non-zero: "<<error<<std::endl;
+    exit(1);
+  }
+  error = Solver->Solve();
+  if (error != 0)
+  {
+    std::cout<<"Solve non-zero: "<<error<<std::endl;
+    exit(1);
+  }
+
+  // get solve time
+  Teuchos::ParameterList TimingsList;
+  Solver->GetTiming(TimingsList);
+  solverTime = Teuchos::getParameter<double> (TimingsList, "Total solve time");
+
+  // set dummy iterative solver outputs
+  converged = true;
+  numIters = 1;
+  resNorm = 0.0;
+  dB = 0.0;
+
+  // copy values back to block structure
+  double *solution =  new double[X.MyLength()];
+  X.ExtractCopy(solution, 0);
+  for (int i=0; i<X.MyLength(); ++i)
+	  Trilinos::X->operator[](i) = solution[i];
+
+  //Fill ghost X with x communicating ghost nodes amongst processors
+  error = Trilinos::ghostX->Import(*Trilinos::X, *Trilinos::Importer, Insert);
+  //check imported correctly
+  if (error != 0)
+  {
+    std::cout << "ERROR: Map ghost node importer!" << std::endl;
+     exit(1);
+  }
+
+    error = Trilinos::ghostX->ExtractCopy(x);
+   if (error != 0)
+   {
+     std::cout << "ERROR: Extracting copy of solution vector!" << std::endl;
+     exit(1);
+  }
+  //set to 0 for the next time iteration
+  Trilinos::K->PutScalar(0.0);
+  Trilinos::F->PutScalar(0.0);
+  if (coupledBC) Trilinos::bdryVec->PutScalar(0.0);
+  //0 out initial guess for iteration
+  Trilinos::X->PutScalar(0.0);
+
+  EpetraExt::RowMatrixToMatlabFile("K_direct.mat", *((Epetra_RowMatrix *) &K));
+//  std::terminate();
+
+  // todo: free memory
+} // trilinos_solve_direct_
+
 // ----------------------------------------------------------------------------
 /**
  * This function uses the established data structure to solve the block linear
@@ -686,6 +947,21 @@ void setPreconditioner(int precondType, AztecOO &Solver)
   }
   else if (precondType == TRILINOS_ML_PRECONDITIONER)
     setMLPrec(Solver);
+  else if (precondType == TRILINOS_GR_PRECONDITIONER)
+  {
+	  checkDiagonalIsZero();
+
+//	  Solver.SetAztecOption(AZ_precond, AZ_Jacobi);
+
+	  Solver.SetAztecOption(AZ_precond, AZ_dom_decomp);
+	  Solver.SetAztecOption(AZ_subdomain_solve, AZ_ilut);
+
+	  Solver.SetAztecOption(AZ_overlap,1);
+//	  Solver.SetAztecOption(AZ_graph_fill,4);
+	  Solver.SetAztecParam(AZ_ilut_fill, 20); //10
+	  Solver.SetAztecParam(AZ_drop, 1e-12); //1.0e-12
+	  Solver.SetPrecMatrix(Trilinos::K);
+  }
   else
   {
     std::cout << "ERROR: Preconditioner Type is undefined" << std::endl;
@@ -1029,3 +1305,139 @@ void printSolutionToFile()
 }
 
 
+
+void convert_block(Epetra_CrsMatrix &K, Epetra_Vector &F, Epetra_Vector &X)
+{
+	// copy RHS and LHS vectors into Epetra_MultiVector (without Epetra_BlockMap structure)
+	// todo: parallelize
+	F.PutScalar(0.0);
+	X.PutScalar(0.0);
+	double val;
+	for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
+	{
+		X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
+		F.SumIntoGlobalValue(i, 0, val);
+	}
+
+	// copy values from Trilinos::K (Epetra_BlockMap structure) to K (Epetra_Map structure)
+	// todo: parallelize
+	K.PutScalar(0.0);
+	int *col = new int[1];
+	for (int i = 0; i < ghostAndLocalNodes; ++i)
+	{
+		int numEntries = nnzPerRow[i]; //block per of entries per row
+		//copy global stiffness values
+		int rowDim, numBlockEntries;
+		int *blockIndices = new int[numEntries];
+		int *colDims = new int[numEntries];
+		Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i], numEntries, rowDim, numBlockEntries, blockIndices, colDims);
+
+		// loop blocks
+		for (int j = 0; j < numEntries; ++j)
+		{
+			std::vector<double> values(rowDim*colDims[j]);
+			int sizeofValues = rowDim*colDims[j];
+			int LDA = colDims[j];
+			Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
+
+			// loop block components and write them into K
+			// convert block indices to global indices (be careful: Trilinos::K uses fortran indexing)
+
+			// loop row
+			for (int k = 0; k < rowDim; ++k)
+			{
+				// global row index
+				int row = (localToGlobalUnsorted[i] - 1) * dof + k;
+
+				// loop col
+				for (int l = 0; l < colDims[j]; ++l)
+				{
+					// global col index
+					col[0] = (blockIndices[j] - 1) * dof + l;
+					val = values[l*colDims[j] + k];
+					K.InsertGlobalValues(row, 1, &val, col);
+				}
+			}
+		}
+	}
+	K.FillComplete();
+}
+
+void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, Epetra_Vector &X)
+{
+
+	// copy RHS and LHS vectors into Epetra_MultiVector (without Epetra_BlockMap structure)
+	// todo: parallelize
+	F.PutScalar(0.0);
+	X.PutScalar(0.0);
+	double val;
+	for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
+	{
+		X.SumIntoGlobalValue(i, 0, Trilinos::X->operator[](i));
+
+		//check for DBCs
+		if (dirW[i] < 0.5)
+			val = 0.0;
+		else
+			val = Trilinos::F->operator[](0)[i];
+		F.SumIntoGlobalValue(i, 0, val);
+	}
+
+	// copy values from Trilinos::K (Epetra_BlockMap structure) to K (Epetra_Map structure)
+	// todo: parallelize
+	K.PutScalar(0.0);
+	int *col = new int[1];
+	bool is_dbc;
+	for (int i = 0; i < ghostAndLocalNodes; ++i)
+	{
+		int numEntries = nnzPerRow[i]; //block per of entries per row
+		//copy global stiffness values
+		int rowDim, numBlockEntries;
+		int *blockIndices = new int[numEntries];
+		int *colDims = new int[numEntries];
+		Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i], numEntries, rowDim, numBlockEntries, blockIndices, colDims);
+
+		// loop blocks
+		for (int j = 0; j < numEntries; ++j)
+		{
+			std::vector<double> values(rowDim*colDims[j]);
+			int sizeofValues = rowDim*colDims[j];
+			int LDA = colDims[j];
+			Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
+
+			// loop block components and write them into K
+			// convert block indices to global indices (be careful: Trilinos::K uses fortran indexing)
+
+			// loop row
+			for (int k = 0; k < rowDim; ++k)
+			{
+				// global row index
+				int row = (localToGlobalUnsorted[i] - 1) * dof + k;
+
+				//check for DBCs
+				if (dirW[row] < 0.5)
+					is_dbc = true;
+				else
+					is_dbc = false;
+
+				// loop col
+				for (int l = 0; l < colDims[j]; ++l)
+				{
+					// global col index
+					col[0] = (blockIndices[j] - 1) * dof + l;
+
+					// if DBC: one on diagonal, zero in the rest of the row
+					if (is_dbc)
+						if (row == col[0])
+							val = 1.0;
+						else
+							continue;
+					else
+						val = values[l*colDims[j] + k];
+					K.InsertGlobalValues(row, 1, &val, col);
+				}
+			}
+		}
+	}
+	K.FillComplete();
+}
