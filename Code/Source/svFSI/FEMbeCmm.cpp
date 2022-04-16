@@ -43,13 +43,36 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	if (J < 0.0)
 		std::terminate();
 
+	// couple wss
+	const bool coup_wss = true;
+
+	const bool aneurysm = false;
+	const bool aneurysm_asym = false;
+	
+	// double KsKi = 0.35;
+	double KsKi = 0.0;
+
 	// get current and end times
 	const double t = *time;
+//	const double t = eVWP[7];
 
-	const double pretime = 1.0;
-	const double endtime = 99999.0;							// 11.0 | 31.0-32.0 (TEVG)
+	// time step size
+	const double dt = 1.0e-1;
+
+	// number of time steps between updates
+	const int n_t_update = 1;
+
+	// number of time steps for prestressing
+	const int n_t_pre = 100;
+
+	// number of time steps total
+	const int n_t_end = 1100;
+
+	const double pretime = n_t_pre * dt;
+	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
 
 	const double eps = std::numeric_limits<double>::epsilon();
+	const double epst = 1.0e-12;
 	const double partialtime = endtime;			// partialtime <= endtime | 10.0 | 10.4 (for TI calculation)
 	const double sgr = std::min(t,partialtime);		// min(t,partialtime) | min(t,9.0)
 
@@ -118,11 +141,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double CB = sqrt(log(2.0));							// such that (1-exp(-CB^2)) = 0.5
 	const double CS = 0.5*CB * 1.0;							// such that (1-exp( -C^2)) = 0.0 for lt = 1/(1+CB/CS)^(1/3) = 0.7 and (1-exp(-C^2)) = 0.75 for lt = 2.0
 
-	double KsKi = 0.35;
-//	double KsKi = 0.1;
-//	double KsKi = 0.03;
-//	double KsKi = 0.09;
-//	double KsKi = 0.0;
 	const double EPS  = 1.0+(1.0-1.0)*(sgr-1.0)/(endtime-1.0);
 
 	const double KfKi   = 1.0;
@@ -136,22 +154,41 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double Jdep = 0.9999;
 	const double lm = 1.0e3*mu;
 
+	// todo: do outside and once per time step
 	// select G&R mode
 	enum GR_Mode { prestress, gr, elastic };
 	GR_Mode mode;
-	if (t <= pretime + eps)
-		mode = prestress;
-	else if (t <= partialtime + eps)
-		mode = gr;
-	else
-		mode = elastic;
 
-	// couple wss
-	const bool coup_wss = false;
+	// prestressing
+	if (0.0 <= t && t <= pretime + epst)
+		mode = prestress;
+	// last step of prestressing: do one gr update to store history values
+	else
+		mode = gr;
+
+	// if (0.0 <= t && t < pretime - epst)
+	// 	mode = prestress;
+	// // last step of prestressing: do one gr update to store history values
+	// else if (pretime - epst <= t && t <= pretime + epst)
+	// 	mode = gr;
+	// else
+	// 	if ((std::fmod(t + epst, dt * n_t_update) < epst*1.0e3) && (t <= endtime + epst))
+	// 		mode = gr;
+	// 	else
+	// 		mode = elastic;
+
+	// pick one Gauss point for output
+	bool out = false;
+	if (abs(eVWP[0] - 0.678501) < 1.0e-6)
+		if (abs(eVWP[1] - 0.0088052) < 1.0e-6)
+			if (abs(eVWP[2] - 0.0211325) < 1.0e-6)
+				out = true;
+
+	if(out)
+		std::cout<<"mode "<<mode<<std::endl;
+
 
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
-	const bool aneurysm = false;
-	const bool aneurysm_asym = false;
 	if (aneurysm and mode == gr) {
 		// no fiber reorientation
 		aexp = 0.0;
@@ -163,12 +200,13 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double z_od = lo/4.0;
 		const int vz = 2;
 		const double phi_e_hm = 0.65;
+		// const double phi_e_hm = 0.3;
 
 		// 8d
 		const double theta_od = 3.0;
 
 		// time factor [0, 1]
-		const double f_time = (sgr - 1.0) / (endtime - 1.0);
+		const double f_time = (sgr - pretime) / (endtime - pretime);
 
 		// axial factor (0, 1]
 		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vz));
@@ -401,6 +439,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 			tau_ratio = tau/tauo;
 		else
 			tau_ratio = pow(rIrIo,-3);
+//		if(out)
+//			std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
 
 		mat3ds sNm = phim*smo;									// phim*smhato = phim*smo
 		mat3ds sNc = phic*sco;									// phic*schato = phic*sco
