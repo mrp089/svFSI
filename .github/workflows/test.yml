@@ -8,6 +8,7 @@ jobs:
       - name: build without trilinos
         shell: bash
         run: |
+          sudo apt-get install -y libmpi libmpi_cxx
           mkdir build
           cd build
           cmake ..
