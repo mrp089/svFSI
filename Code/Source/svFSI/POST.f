@@ -47,14 +47,15 @@
 
       INTEGER(KIND=IKIND) a, Ac, iM
 
-      REAL(KIND=RKIND), ALLOCATABLE :: tmpV(:,:), tmpVe(:)
+      REAL(KIND=RKIND), ALLOCATABLE :: tmpV(:,:), tmpVe(:), dtmpVe(:,:)
 
       DO iM=1, nMsh
          IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
          ALLOCATE(tmpV(maxnsd,msh(iM)%nNo))
          ALLOCATE(tmpVe(msh(iM)%nEl))
+         ALLOCATE(dtmpVe(maxnsd,msh(iM)%nNo))
          IF (outGrp.EQ.outGrp_WSS .OR. outGrp.EQ.outGrp_trac) THEN
-            CALL BPOST(msh(iM), tmpV, tmpVe, lY, lD, outGrp)
+            CALL BPOST(msh(iM), tmpV, tmpVe, dtmpVe, lY, lD, outGrp)
             DO a=1, msh(iM)%nNo
                Ac = msh(iM)%gN(a)
                res(:,Ac) = tmpV(:,a)
@@ -324,23 +325,26 @@
 !     General purpose routine for post processing outputs at the
 !     faces. Currently this calculates WSS, which is t.n - (n.t.n)n
 !     Here t is stress tensor: t = \mu (grad(u) + grad(u)^T)
-      SUBROUTINE BPOST(lM, res, resE, lY, lD, outGrp)
+      SUBROUTINE BPOST(lM, res, resE, dtau, lY, lD, outGrp)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
       TYPE(mshType), INTENT(INOUT) :: lM
-      REAL(KIND=RKIND), INTENT(OUT) :: res(maxnsd,lM%nNo), resE(lM%nEl)
+      REAL(KIND=RKIND), INTENT(OUT) :: res(maxnsd,lM%nNo), resE(lM%nEl),
+     2                                dtau(maxnsd,lM%nNo)
       REAL(KIND=RKIND), INTENT(IN) :: lY(tDof,tnNo), lD(tDof,tnNo)
       INTEGER(KIND=IKIND), INTENT(IN) :: outGrp
 
       LOGICAL FSIeq
       INTEGER(KIND=IKIND) a, Ac, e, Ec, i, j, iEq, iFa, eNoN, g
       REAL(KIND=RKIND) Tdn(nsd), ndTdn, taue(nsd), ux(nsd,nsd), mu, w,
-     2   nV(nsd), Jac, ks(nsd,nsd), lRes(maxnsd), p, gam, mu_s
+     2   nV(nsd), Jac, ks(nsd,nsd), lRes(maxnsd), p, gam, mu_s,
+     3   Nxn, dtaue(nsd)
       TYPE(fsType) :: fsP
 
       REAL(KIND=RKIND), ALLOCATABLE :: sA(:), sF(:,:), gnV(:,:),
-     2   lnV(:,:), xl(:,:), ul(:,:), pl(:), N(:), Nx(:,:), enV(:)
+     2   lnV(:,:), xl(:,:), ul(:,:), pl(:), N(:), Nx(:,:), enV(:),
+     3   dsF(:,:)
 
       IF (outGrp.NE.outGrp_WSS .AND. outGrp.NE.outGrp_trac) err =
      2   "Invalid output group. Correction is required in BPOST"
@@ -351,9 +355,11 @@
       IF (eq(iEq)%phys .EQ. phys_FSI) FSIeq = .TRUE.
 
       ALLOCATE (sA(tnNo), sF(maxnsd,tnNo), xl(nsd,eNoN), ul(nsd,eNoN),
-     2   gnV(nsd,tnNo), lnV(nsd,eNoN), N(eNoN), Nx(nsd,eNoN), enV(nsd))
+     2   gnV(nsd,tnNo), lnV(nsd,eNoN), N(eNoN), Nx(nsd,eNoN), enV(nsd),
+     3   dsF(maxnsd,tnNo))
       sA   = 0._RKIND
       sF   = 0._RKIND
+      dsF  = 0._RKIND
       gnV  = 0._RKIND
       enV  = 0._RKIND
       lRes = 0._RKIND
@@ -482,9 +488,25 @@
 
 !     Mapping Tau into the nodes by assembling it into a local vector
                DO a=1, eNoN
-                  Ac       = lM%IEN(a,Ec)
-                  sA(Ac)   = sA(Ac)   + w*N(a)
-                  sF(:,Ac) = sF(:,Ac) + w*N(a)*lRes
+                  Ac        =  lM%IEN(a,Ec)
+                  sA(Ac)    =  sA(Ac)   + w*N(a)
+                  sF(:,Ac)  =  sF(:,Ac) + w*N(a)*lRes
+!     Calculate derivative d tau / d u
+
+!     Nxn = grad(Nx).n
+                  Nxn   = 0._RKIND
+                  DO i=1, nsd
+                     Nxn = Nxn + Nx(i,a) * nV(i)
+                  END DO
+
+                  dtaue = - mu * taue * Nxn
+                  IF (.NOT.ISZERO(NORM(taue))) THEN
+                     dtaue = dtaue / SQRT(NORM(taue))
+                  ELSE
+                     dtaue = 0._RKIND
+                  END IF
+
+                  dsF(:,Ac) = dsF(:,Ac) + w*N(a)*dtaue
                END DO
 
 !     Store element quantities
@@ -493,23 +515,27 @@
          END DO
       END DO
 
-      CALL COMMU(sF)
       CALL COMMU(sA)
+      CALL COMMU(sF)
+      CALL COMMU(dsF)
 
       DO iFa=1, lM%nFa
          DO a=1, lM%fa(iFa)%nNo
             Ac = lM%fa(iFa)%gN(a)
             IF (.NOT.ISZERO(sA(Ac))) THEN
-               sF(:,Ac) = sF(:,Ac)/sA(Ac)
-               sA(Ac)   = 1._RKIND
+                sF(:,Ac) =  sF(:,Ac)/sA(Ac)
+               dsF(:,Ac) = dsF(:,Ac)/sA(Ac)
+               sA(Ac)    = 1._RKIND
             END IF
          END DO
       END DO
 
       res = 0._RKIND
+      dtau = 0._RKIND
       DO a=1, lM%nNo
-         Ac       = lM%gN(a)
-         res(:,a) = sF(:,Ac)
+         Ac        =  lM%gN(a)
+         res(:,a)  =  sF(:,Ac)
+         dtau(:,a) = dsF(:,Ac)
       END DO
 
       RETURN
@@ -533,7 +559,7 @@
      2   p, trS, vmises, xi(nsd), xi0(nsd), xp(nsd), ed(nsymd),
      3   Im(nsd,nsd), F(nsd,nsd), C(nsd,nsd), Eg(nsd,nsd), P1(nsd,nsd),
      4   S(nsd,nsd), sigma(nsd,nsd), Dm(nsymd,nsymd), grInt(nGrInt),
-     5   eVWP(nvwp)
+     5   eVWP(nvwp), Stau(nsd,nsd)
       TYPE(fsType) :: fs
 
       INTEGER, ALLOCATABLE :: eNds(:)
@@ -766,7 +792,7 @@
 
                ELSE IF (cPhys .EQ. phys_struct) THEN
                   CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
-     2               grInt, S,Dm, eVWP)
+     2               grInt, S, Dm, eVWP, Stau)
                   P1 = MATMUL(F, S)
                   sigma = MATMUL(P1, TRANSPOSE(F))
                   IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF

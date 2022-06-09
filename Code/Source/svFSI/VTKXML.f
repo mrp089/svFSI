@@ -425,7 +425,7 @@
       TYPE(vtkXMLType) :: vtu
 
       INTEGER(KIND=IKIND), ALLOCATABLE :: outS(:), tmpI(:,:)
-      REAL(KIND=RKIND), ALLOCATABLE :: tmpV(:,:), tmpVe(:)
+      REAL(KIND=RKIND), ALLOCATABLE :: tmpV(:,:), tmpVe(:), dtmpV(:,:)
       CHARACTER(LEN=stdL), ALLOCATABLE :: outNames(:), outNamesE(:)
 
       lIbl = .FALSE.
@@ -551,11 +551,15 @@
                CASE (outGrp_WSS, outGrp_trac)
                   IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
                   IF (ALLOCATED(tmpVe)) DEALLOCATE(tmpVe)
-                  ALLOCATE(tmpV(l,msh(iM)%nNo), tmpVe(msh(iM)%nEl))
+                  IF (ALLOCATED(dtmpV)) DEALLOCATE(dtmpV)
+                  ALLOCATE(tmpV(l,msh(iM)%nNo))
+                  ALLOCATE(tmpVe(msh(iM)%nEl))
+                  ALLOCATE(dtmpV(l,msh(iM)%nNo))
                   tmpVe = 0._RKIND
+                  dtmpV = 0._RKIND
 
 !     nodal wss
-                  CALL BPOST(msh(iM), tmpV, tmpVe, lY, lD, oGrp)
+                  CALL BPOST(msh(iM), tmpV, tmpVe, dtmpV, lY, lD, oGrp)
                   DO a=1, msh(iM)%nNo
                      d(iM)%x(is:ie,a) = tmpV(1:l,a)
                   END DO
@@ -566,7 +570,7 @@
                      d(iM)%xe(nOute,a) = tmpVe(a)
                   END DO
 
-                  DEALLOCATE(tmpV,tmpVe)
+                  DEALLOCATE(tmpV,tmpVe,dtmpV)
 
                CASE (outGrp_vort, outGrp_eFlx, outGrp_hFlx,
      2            outGrp_stInv, outGrp_vortex, outGrp_Visc)

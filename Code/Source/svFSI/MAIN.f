@@ -48,7 +48,7 @@
 
       INTEGER(KIND=IKIND), ALLOCATABLE :: incL(:), iInt
       REAL(KIND=RKIND), ALLOCATABLE :: Ag(:,:), Yg(:,:), Dg(:,:),
-     2   res(:), wss(:,:), wsse(:), swss
+     2   res(:), wss(:,:), wsse(:), dwss(:,:), swss, sdwss(:)
 
       IF (IKIND.NE.LSIP .OR. RKIND.NE.LSRP) THEN
          STOP "Incompatible datatype precision between solver and FSILS"
@@ -83,7 +83,8 @@
       dbg = 'Allocating intermediate variables'
       ALLOCATE(Ag(tDof,tnNo), Yg(tDof,tnNo), Dg(tDof,tnNo),
      2   res(nFacesLS), incL(nFacesLS),
-     3   wss(maxnsd,msh(1)%nNo), wsse(msh(1)%nEl))
+     3   wss(maxnsd,msh(1)%nNo), wsse(msh(1)%nEl),
+     4   dwss(maxnsd,msh(1)%nNo), sdwss(maxnsd))
 
 !--------------------------------------------------------------------
 !     Outer loop for marching in time. When entring this loop, all old
@@ -249,18 +250,22 @@
 !             post-process wss
               wss = 0._RKIND
               wsse = 0._RKIND
-              CALL BPOST(msh(1), wss, wsse, Yg, Dg, outGrp_WSS)
+              dwss = 0._RKIND
+              CALL BPOST(msh(1), wss, wsse, dwss, Yg, Dg, outGrp_WSS)
 
+!             fixme: run in parallel
 !             map from fluid to solid interface
               DO iFluid=1, msh(1)%gnNo
-                  DO iSolid1=1, msh(2)%gnNo
+                 DO iSolid1=1, msh(2)%gnNo
 !                   check where fluid and solid nodes intersect
                     IF (msh(1)%gN(iFluid) .EQ. msh(2)%gN(iSolid1)) THEN
 !                      get wss norm on fluid interface
                        swss = SQRT(NORM(wss(:,iFluid)))
+                       sdwss = dwss(:,iFluid)
 
 !                      assign wss to solid interface
                        vWP0(7,iSolid1) = swss
+                       vWP0(10:12,iSolid1) = sdwss(:)
 
 !                      get solid interface id
                        iInt = vWP0(9,msh(2)%gN(iSolid1))
@@ -269,10 +274,11 @@
                        DO iSolid2=1, msh(2)%gnNo
                           IF (vWP0(9,msh(2)%gN(iSolid2)) .EQ. iInt) THEN
                              vWP0(7,msh(2)%gN(iSolid2)) = swss
+                             vWP0(10:12,msh(2)%gN(iSolid2)) = sdwss
                           END IF
                        END DO
                     END IF
-                  END DO
+                 END DO
               END DO
 !              CALL EXIT(1)
             END IF
