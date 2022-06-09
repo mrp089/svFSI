@@ -42,20 +42,66 @@
       USE ALLFUN
       IMPLICIT NONE
       REAL(KIND=RKIND), INTENT(OUT) :: res(maxnsd,tnNo)
-      REAL(KIND=RKIND), INTENT(IN) :: lY(tDof,tnNo), lD(tDof,tnNo)
+      REAL(KIND=RKIND), INTENT(INOUT) :: lY(tDof,tnNo), lD(tDof,tnNo)
       INTEGER(KIND=IKIND), INTENT(IN) :: outGrp, iEq
 
       INTEGER(KIND=IKIND) a, Ac, iM
+      INTEGER(KIND=IKIND) ii, jj
 
       REAL(KIND=RKIND), ALLOCATABLE :: tmpV(:,:), tmpVe(:), dtmpVe(:,:)
+      REAL(KIND=RKIND) tol, du, tau0, taup, diff
+      REAL(KIND=RKIND), ALLOCATABLE :: dtau_fd(:,:), tmpVp(:,:)
 
       DO iM=1, nMsh
          IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
          ALLOCATE(tmpV(maxnsd,msh(iM)%nNo))
          ALLOCATE(tmpVe(msh(iM)%nEl))
          ALLOCATE(dtmpVe(maxnsd,msh(iM)%nNo))
+         ALLOCATE(dtau_fd(maxnsd,msh(iM)%nNo))
+         ALLOCATE(tmpVp(maxnsd,msh(iM)%nNo))
          IF (outGrp.EQ.outGrp_WSS .OR. outGrp.EQ.outGrp_trac) THEN
             CALL BPOST(msh(iM), tmpV, tmpVe, dtmpVe, lY, lD, outGrp)
+!
+!!           calculate dtmpVe with finite differences
+!            tol = 1.E-2_RKIND
+!
+!!           loop nodes
+!            DO ii=1,msh(iM)%nNo
+!               tau0 = SQRT(NORM(tmpV(:,ii)))
+!!           loop space
+!               DO jj=1,maxnsd
+!!                 choose step size
+!                  IF (.NOT.ISZERO(lY(jj,ii))) THEN
+!                     du = tol * ABS(lY(jj,ii))
+!                  ELSE
+!                     du = tol
+!                  END IF
+!
+!!                 perturb solution vector
+!                  lY(jj,ii) = lY(jj,ii) + du
+!
+!                  CALL BPOST(msh(iM), tmpVp, tmpVe, dtmpVe, lY, lD,
+!     2                       outGrp)
+!
+!!                 restore solution vector
+!                  lY(jj,ii) = lY(jj,ii) - du
+!
+!                  taup = SQRT(NORM(tmpVp(:,ii)))
+!
+!!                 calculate finite difference
+!                  dtau_fd(jj,ii) = (taup - tau0) / du
+!
+!                  IF (.NOT.ISZERO(dtmpVe(jj,ii))) THEN
+!                     diff = ABS((dtmpVe(jj,ii) - dtau_fd(jj,ii))
+!     2                      / dtmpVe(jj,ii))
+!                  ELSE
+!                     diff = 0._RKIND
+!                  END IF
+!
+!                  WRITE(*,*) dtmpVe(jj,ii), dtau_fd(jj,ii), diff
+!               END DO
+!            END DO
+
             DO a=1, msh(iM)%nNo
                Ac = msh(iM)%gN(a)
                res(:,Ac) = tmpV(:,a)
@@ -339,7 +385,7 @@
       INTEGER(KIND=IKIND) a, Ac, e, Ec, i, j, iEq, iFa, eNoN, g
       REAL(KIND=RKIND) Tdn(nsd), ndTdn, taue(nsd), ux(nsd,nsd), mu, w,
      2   nV(nsd), Jac, ks(nsd,nsd), lRes(maxnsd), p, gam, mu_s,
-     3   Nxn, dtaue(nsd)
+     3   Nxn, Nxt, dtaue(nsd)
       TYPE(fsType) :: fsP
 
       REAL(KIND=RKIND), ALLOCATABLE :: sA(:), sF(:,:), gnV(:,:),
@@ -494,12 +540,18 @@
 !     Calculate derivative d tau / d u
 
 !     Nxn = grad(Nx).n
-                  Nxn   = 0._RKIND
+                  Nxn = 0._RKIND
                   DO i=1, nsd
                      Nxn = Nxn + Nx(i,a) * nV(i)
                   END DO
 
-                  dtaue = - mu * taue * Nxn
+!     Nxt = grad(Nx).tau
+                  Nxt = 0._RKIND
+                  DO i=1, nsd
+                     Nxt = Nxt + Nx(i,a) * taue(i)
+                  END DO
+
+                  dtaue = mu * (taue * Nxn + nV * Nxt)
                   IF (.NOT.ISZERO(NORM(taue))) THEN
                      dtaue = dtaue / SQRT(NORM(taue))
                   ELSE
