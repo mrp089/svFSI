@@ -172,10 +172,11 @@
       REAL(KIND=RKIND), INTENT(INOUT) :: grInt(nGrInt), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
 
-      INTEGER(KIND=IKIND) :: a, b, i, j, k
+      INTEGER(KIND=IKIND) :: a, b, i, j, k, d1, d2, dd
       REAL(KIND=RKIND) :: rho, dmp, T1, amd, afl, ya_g, fb(3), ud(3),
      2   NxSNx, BmDBm, F(3,3), S(3,3), P(3,3), Dm(6,6), DBm(6,3),
-     3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp)
+     3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp), Stau(3,3), Ptau(3,3),
+     4   dwss(3), NxP
 
 !     Define parameters
       rho     = eq(cEq)%dmn(cDmn)%prop(solid_density)
@@ -185,7 +186,6 @@
       fb(3)   = eq(cEq)%dmn(cDmn)%prop(f_z)
       amd     = eq(cEq)%am*rho + eq(cEq)%af*eq(cEq)%gam*dt*dmp
       afl     = eq(cEq)%af*eq(cEq)%beta*dt*dt
-!      afl     = eq(cEq)%af*eq(cEq)%beta
       i       = eq(cEq)%s
       j       = i + 1
       k       = j + 1
@@ -233,10 +233,12 @@
       S0(3,2) = S0(2,3)
       S0(1,3) = S0(3,1)
 
+      dwss = eVWP(10:12)
+
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
       CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
-     2              eVWP)
+     2              eVWP, Stau)
 
 !     Prestress
       pSl(1) = S(1,1)
@@ -249,6 +251,7 @@
 
 !     1st Piola-Kirchhoff tensor (P)
       P = MATMUL(F, S)
+      Ptau = MATMUL(F, Stau)
 
       DO a=1, eNoN
          Bm(1,1,a) = Nx(1,a)*F(1,1)
@@ -341,6 +344,27 @@
      2              Bm(3,3,a)*DBm(3,3) + Bm(4,3,a)*DBm(4,3) +
      2              Bm(5,3,a)*DBm(5,3) + Bm(6,3,a)*DBm(6,3)
             lK(2*dof+3,a,b) = lK(2*dof+3,a,b) + w*(T1 + afl*BmDBm)
+
+!           linearization of WSS-dependent material
+!           todo: do only for g&r material
+!           todo: do only on elements connected to the interface
+
+!         lR(1,a) = lR(1,a) + w*(N(a)*ud(1) + Nx(1,a)*P(1,1) +
+!     2      Nx(2,a)*P(1,2) + Nx(3,a)*P(1,3))
+!         lR(2,a) = lR(2,a) + w*(N(a)*ud(2) + Nx(1,a)*P(2,1) +
+!     2      Nx(2,a)*P(2,2) + Nx(3,a)*P(2,3))
+!         lR(3,a) = lR(3,a) + w*(N(a)*ud(3) + Nx(1,a)*P(3,1) +
+!     2      Nx(2,a)*P(3,2) + Nx(3,a)*P(3,3))
+
+            DO d1=1,3
+               DO d2=1,3
+                  NxP = NxP + Nx(d2,a) * Ptau(d1,d2)
+               END DO
+               DO d2=1,3
+                  dd = d2 + (d1 - 1) * 3
+                  lK(dd,a,b) = lK(dd,a,b) + w*(NxP * dwss(d2) * N(b))
+               END DO
+            END DO
          END DO
       END DO
 

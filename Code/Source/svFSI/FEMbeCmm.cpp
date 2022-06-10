@@ -23,7 +23,7 @@
 extern"C"
 {
 
-void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out)
+void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out, double* S_tau_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
@@ -49,8 +49,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const bool aneurysm = false;
 	const bool aneurysm_asym = false;
 	
-	// double KsKi = 0.35;
-	double KsKi = 0.0;
+	double KsKi = 0.35;
+//	double KsKi = 0.0;
 
 	// get current and end times
 	const double t = *time;
@@ -66,7 +66,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 100;
 
 	// number of time steps total
-	const int n_t_end = 1100;
+	const int n_t_end = 2000;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -94,6 +94,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// WSS
 	const double tau = eVWP[6];
+
+	// dWSS
+	const vec3d dtau(eVWP[9],eVWP[10], eVWP[11]);
+//	std::cout<<eVWP[9]<<" "<<eVWP[10]<<" "<<eVWP[11]<<std::endl;
 
 	// pointwise, consistent with mesh generated with Matlab script <NodesElementsAsy.m>
 	const vec3d n2(0.0, imper/100.0*rIo*hwaves*M_PI/lo*cos(hwaves*M_PI*X.z/lo), 1.0);
@@ -183,6 +187,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		if (abs(eVWP[1] - 0.0088052) < 1.0e-6)
 			if (abs(eVWP[2] - 0.0211325) < 1.0e-6)
 				out = true;
+	out = false;
 
 	if(out)
 		std::cout<<"mode "<<mode<<std::endl;
@@ -245,6 +250,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// computation of the second Piola-Kirchhoff stress
 	mat3ds S(0.0);
+
+	// derivative of 2PK w.r.t. tau_wh
+	mat3ds Stau(0.0);
+
 	// computation of spatial moduli
 	tens4dmm css;
 	mat3ds sfpro;
@@ -439,8 +448,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 			tau_ratio = tau/tauo;
 		else
 			tau_ratio = pow(rIrIo,-3);
-//		if(out)
-//			std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
+		if(out)
+			std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
 
 		mat3ds sNm = phim*smo;									// phim*smhato = phim*smo
 		mat3ds sNc = phic*sco;									// phic*schato = phic*sco
@@ -468,6 +477,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
 
 		S = Sx - J*p*Ci;
+
+		// dS/dtau
+		if (coup_wss)
+			Stau = J * svo/(1.0-delta) * KsKi * EPS / tauo * Ci;
 
 		// compute tangent
 
@@ -549,9 +562,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const tens4dmm saoxnrr = dyad1mm((R*sao*R.transpose()).sym(),tenr);
 		const tens4dmm saoxntt = dyad1mm((R*sao*R.transpose()).sym(),tent);
 
-		// 1/J * FoF : [ J * phim * 1/(1.0-exp(-CB*CB)) * (Ui*sao*Ui) x d(1-exp(-Cratio^2))/d(C/2) ] : (Ft)o(Ft)
-		const tens4dmm cass = phim * 6.0*Cratio*CS*EPS*pow(rIrIo,-4)*exp(-Cratio*Cratio)/(1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
-
 		// contribution due to change in Cauchy stresses at constituent level (orientation only, for now)
 		tens4dmm cpnss(0.0);
 
@@ -571,17 +581,15 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		const tens4dmm cess = tens4dmm(ce);							// ce in tens4dmm form
 
-		css = cess + cfss + cpnss;// + cass
+		css = cess + cfss + cpnss;
+		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css));
+		css += svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss);
 
-		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))
-//						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss)
-//						 - 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
-						 + svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss);
-
+		// wss linearization
 		if (!coup_wss)
 		{
-			css += cass;
-			css -= 3.0*svo/(1.0-delta)*KsKi*EPS*pow(rIrIo,-4)*(ro/rIo/lt*Ixntt-(ro-rIo)/rIo/lr*Ixnrr);
+			css += 3.0 * pow(rIrIo,-4) * phim * 2.0 * Cratio * CS * EPS * exp(-Cratio * Cratio) / (1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
+			css -= 3.0 * pow(rIrIo,-4) * svo/(1.0-delta) * KsKi * EPS                                               * (ro/rIo/lt*Ixntt  -(ro-rIo)/rIo/lr*Ixnrr);
 		}
 
 		break;
@@ -677,6 +685,15 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 					if (std::isnan(css_ref(i, j, k, l)))
 						std::terminate();
 				}
+
+	ten_2nd S2t = (ten_2nd) S_tau_out;
+	for (int i=0; i < 3; i++)
+		for (int j=0; j < 3; j++)
+		{
+			S2t[j][i] = Stau(i, j);
+			if (std::isnan(Stau(i, j)))
+				std::terminate();
+		}
 
 	// store prestress state
 	if (mode == prestress)
