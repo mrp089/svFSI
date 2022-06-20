@@ -50,7 +50,7 @@
       INTEGER(KIND=IKIND), ALLOCATABLE :: ptr(:)
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
      2   dl(:,:), bfl(:,:), fN(:,:), pS0l(:,:), pSl(:), ya_l(:), N(:),
-     3   Nx(:,:), lR(:,:), lK(:,:,:), lVWP(:,:)
+     3   Nx(:,:), lR(:,:), lK(:,:,:), lVWP(:,:), lRtau(:,:)
 
       eNoN = lM%eNoN
       nFn  = lM%nFn
@@ -60,7 +60,7 @@
       ALLOCATE(ptr(eNoN), xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
      2   dl(tDof,eNoN), bfl(nsd,eNoN), fN(nsd,nFn), pS0l(nsymd,eNoN),
      3   pSl(nsymd), ya_l(eNoN), N(eNoN), Nx(nsd,eNoN), lR(dof,eNoN),
-     4   lK(dof*dof,eNoN,eNoN), lVWP(nvwp,eNoN))
+     4   lK(dof*dof,eNoN,eNoN), lVWP(nvwp,eNoN), lRtau(dof,eNoN))
 
 
 !     Loop over all elements of mesh
@@ -118,7 +118,7 @@
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
                CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
+     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, lRtau)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
@@ -160,7 +160,7 @@
       END SUBROUTINE CONSTRUCT_dSOLID
 !####################################################################
       SUBROUTINE STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
+     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP, lRtau)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
@@ -170,13 +170,13 @@
      3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN)
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(6)
       REAL(KIND=RKIND), INTENT(INOUT) :: grInt(nGrInt), lR(dof,eNoN),
-     2   lK(dof*dof,eNoN,eNoN)
+     2   lK(dof*dof,eNoN,eNoN), lRtau(dof,eNoN)
 
-      INTEGER(KIND=IKIND) :: a, b, i, j, k, d1, d2, dd
+      INTEGER(KIND=IKIND) :: a, b, i, j, k, ii, jj, dd
       REAL(KIND=RKIND) :: rho, dmp, T1, amd, afl, ya_g, fb(3), ud(3),
      2   NxSNx, BmDBm, F(3,3), S(3,3), P(3,3), Dm(6,6), DBm(6,3),
      3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp), Stau(3,3), Ptau(3,3),
-     4   dwss(3), NxP
+     4   dwss(3,eNoN), NxP
 
 !     Define parameters
       rho     = eq(cEq)%dmn(cDmn)%prop(solid_density)
@@ -233,7 +233,7 @@
       S0(3,2) = S0(2,3)
       S0(1,3) = S0(3,1)
 
-      dwss = eVWP(10:12)
+      dwss = lVWP(10:12,:)
 
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
@@ -250,7 +250,7 @@
       S = S + S0
 
 !     1st Piola-Kirchhoff tensor (P)
-      P = MATMUL(F, S)
+      P    = MATMUL(F, S)
       Ptau = MATMUL(F, Stau)
 
       DO a=1, eNoN
@@ -287,6 +287,14 @@
      2      Nx(2,a)*P(2,2) + Nx(3,a)*P(2,3))
          lR(3,a) = lR(3,a) + w*(N(a)*ud(3) + Nx(1,a)*P(3,1) +
      2      Nx(2,a)*P(3,2) + Nx(3,a)*P(3,3))
+
+!         DO ii=1,3
+!            NxP = 0._RKIND
+!            DO jj=1,3
+!               NxP = NxP + Ptau(ii,jj) * Nx(jj,a)
+!            END DO
+!            lRtau(ii,a) = lRtau(ii,a) + w * NxP
+!         END DO
 
          DO b=1, eNoN
 !           Geometric stiffness
@@ -349,20 +357,15 @@
 !           todo: do only for g&r material
 !           todo: do only on elements connected to the interface
 
-!         lR(1,a) = lR(1,a) + w*(N(a)*ud(1) + Nx(1,a)*P(1,1) +
-!     2      Nx(2,a)*P(1,2) + Nx(3,a)*P(1,3))
-!         lR(2,a) = lR(2,a) + w*(N(a)*ud(2) + Nx(1,a)*P(2,1) +
-!     2      Nx(2,a)*P(2,2) + Nx(3,a)*P(2,3))
-!         lR(3,a) = lR(3,a) + w*(N(a)*ud(3) + Nx(1,a)*P(3,1) +
-!     2      Nx(2,a)*P(3,2) + Nx(3,a)*P(3,3))
-
-            DO d1=1,3
-               DO d2=1,3
-                  NxP = NxP + Nx(d2,a) * Ptau(d1,d2)
+            DO ii=1,3
+               NxP = 0._RKIND
+               DO jj=1,3
+                  NxP = NxP + Ptau(ii,jj) * Nx(jj,a)
                END DO
-               DO d2=1,3
-                  dd = d2 + (d1 - 1) * 3
-                  lK(dd,a,b) = lK(dd,a,b) + w*(NxP * dwss(d2) * N(b))
+               DO jj=1,3
+!                  dd = (ii - 1) * 3 + jj
+                  dd = (jj - 1) * 3 + ii
+                  lK(dd,a,b) = lK(dd,a,b) + w*afl*(NxP * dwss(jj,b))
                END DO
             END DO
          END DO
