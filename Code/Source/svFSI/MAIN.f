@@ -244,45 +244,6 @@
 !              Yo = 0._RKIND
 !              Yg = 0._RKIND
 
-!           calculate wss for g&r
-!           fixme: select fluid/solid mesh automatically
-            IF (eq(cEq)%phys .EQ. phys_FSI) THEN
-!             post-process wss
-              wss = 0._RKIND
-              wsse = 0._RKIND
-              dwss = 0._RKIND
-              CALL BPOST(msh(1), wss, wsse, dwss, Yg, Dg, outGrp_WSS)
-
-!             fixme: run in parallel
-!             map from fluid to solid interface
-              DO iFluid=1, msh(1)%gnNo
-                 DO iSolid1=1, msh(2)%gnNo
-!                   check where fluid and solid nodes intersect
-                    IF (msh(1)%gN(iFluid) .EQ. msh(2)%gN(iSolid1)) THEN
-!                      get wss norm on fluid interface
-                       swss = SQRT(NORM(wss(:,iFluid)))
-                       sdwss = dwss(:,iFluid)
-
-!                      assign wss to solid interface
-                       vWP0(7,iSolid1) = swss
-                       vWP0(10:12,iSolid1) = sdwss(:)
-
-!                      get solid interface id
-                       iInt = vWP0(9,msh(2)%gN(iSolid1))
-
-!                      assign wss to all points with same interface id
-                       DO iSolid2=1, msh(2)%gnNo
-                          IF (vWP0(9,msh(2)%gN(iSolid2)) .EQ. iInt) THEN
-                             vWP0(7,msh(2)%gN(iSolid2)) = swss
-                             vWP0(10:12,msh(2)%gN(iSolid2)) = sdwss
-                          END IF
-                       END DO
-                    END IF
-                 END DO
-              END DO
-!              CALL EXIT(1)
-            END IF
-
 !        Checking for exceptions
             CALL EXCEPTIONS
 

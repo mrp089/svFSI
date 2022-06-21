@@ -36,25 +36,31 @@
 !
 !--------------------------------------------------------------------
 
-      SUBROUTINE CONSTRUCT_FSI(lM, Ag, Yg, Dg)
+      SUBROUTINE EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
       TYPE(mshType), INTENT(INOUT) :: lM
+      INTEGER(KIND=IKIND), INTENT(IN) :: e
       REAL(KIND=RKIND), INTENT(IN) :: Ag(tDof,tnNo), Yg(tDof,tnNo),
      2   Dg(tDof,tnNo)
+      INTEGER(KIND=IKIND), INTENT(INOUT) :: ptr(lM%eNoN)
+      REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,lM%eNoN),
+     2                                   lK(dof*dof,lM%eNoN,lM%eNoN)
 
       LOGICAL :: vmsStab
-      INTEGER(KIND=IKIND) a, e, g, l, Ac, eNoN, cPhys, iFn, nFn
-      REAL(KIND=RKIND) w, Jac, ksix(nsd,nsd), grInt(nGrInt)
+      INTEGER(KIND=IKIND) a, g, l, Ac, eNoN, cPhys, iFn, nFn,
+     2                    iFluid, iSolid1, iSolid2, iInt
+      REAL(KIND=RKIND) w, Jac, ksix(nsd,nsd), grInt(nGrInt), diff, tol,
+     2                 du, ii, jj, swss
       TYPE(fsType) :: fs(2)
 
-      INTEGER(KIND=IKIND), ALLOCATABLE :: ptr(:)
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
      2   dl(:,:), bfl(:,:), fN(:,:), pS0l(:,:), pSl(:), ya_l(:),
-     3   lR(:,:), lK(:,:,:), lKd(:,:,:), lVWP(:,:)
+     3   lKd(:,:,:), lVWP(:,:), lRtau(:,:),
+     4   lRtmp(:,:), lRp(:,:), lRtau_fd(:,:), lR0(:,:), lK0(:,:,:)
       REAL(KIND=RKIND), ALLOCATABLE :: xwl(:,:), xql(:,:), Nwx(:,:),
-     2   Nwxx(:,:), Nqx(:,:)
+     2   Nwxx(:,:), Nqx(:,:), wss(:,:), wsse(:), dwss(:,:), sdwss(:)
 
       eNoN = lM%eNoN
       nFn  = lM%nFn
@@ -69,19 +75,55 @@
 !     l = 3, if nsd==2 ; else 6;
       l = nsymd
 
-      ALLOCATE(ptr(eNoN), xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
+      ALLOCATE(xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
      2   dl(tDof,eNoN), bfl(nsd,eNoN), fN(nsd,nFn), pS0l(nsymd,eNoN),
-     3   pSl(nsymd), ya_l(eNoN), lR(dof,eNoN), lK(dof*dof,eNoN,eNoN),
-     4   lKd(dof*nsd,eNoN,eNoN), lVWP(nvwp,eNoN))
+     3   pSl(nsymd), ya_l(eNoN),
+     4   lKd(dof*nsd,eNoN,eNoN), lVWP(nvwp,eNoN), lRtau(dof,eNoN),
+     5   lRtmp(dof,eNoN), lRtau_fd(dof,eNoN), lR0(dof,eNoN),
+     6   lRp(dof,eNoN), lK0(dof*dof,eNoN,eNoN), wss(maxnsd,msh(1)%nNo),
+     7   wsse(msh(1)%nEl), dwss(maxnsd,msh(1)%nNo), sdwss(maxnsd))
 
-!     Loop over all elements of mesh
-      DO e=1, lM%nEl
+!     calculate wss for g&r
+!     fixme: select fluid/solid mesh automatically
+      IF (ALLOCATED(lM%grVn)) THEN
+!        post-process wss
+         wss = 0._RKIND
+         wsse = 0._RKIND
+         dwss = 0._RKIND
+         CALL BPOST(msh(1), wss, wsse, dwss, Yg, Dg, outGrp_WSS)
+
+!        fixme: run in parallel (evaluate for this element only)
+!        todo: work with non-uniform meshes
+!        map from fluid to solid interface
+         DO iFluid=1, msh(1)%gnNo
+            DO iSolid1=1, msh(2)%gnNo
+!              check where fluid and solid nodes intersect
+               IF (msh(1)%gN(iFluid) .EQ. msh(2)%gN(iSolid1)) THEN
+!                 get wss norm on fluid interface
+                  swss = SQRT(NORM(wss(:,iFluid)))
+                  sdwss = dwss(:,iFluid)
+
+!                 assign wss to solid interface
+                  vWP0(7,iSolid1) = swss
+                  vWP0(10:12,iSolid1) = sdwss(:)
+
+!                 get solid interface id
+                  iInt = vWP0(9,msh(2)%gN(iSolid1))
+
+!                 assign wss to all points with same interface id
+                  DO iSolid2=1, msh(2)%gnNo
+                     IF (vWP0(9,msh(2)%gN(iSolid2)) .EQ. iInt) THEN
+                        vWP0(7,msh(2)%gN(iSolid2)) = swss
+                        vWP0(10:12,msh(2)%gN(iSolid2)) = sdwss
+                     END IF
+                  END DO
+               END IF
+            END DO
+         END DO
+      END IF
+
          cDmn  = DOMAIN(lM, cEq, e)
          cPhys = eq(cEq)%dmn(cDmn)%phys
-         IF ((cPhys .NE. phys_fluid)  .AND.
-     2       (cPhys .NE. phys_lElas)  .AND.
-     3       (cPhys .NE. phys_struct) .AND.
-     4       (cPhys .NE. phys_ustruct)) CYCLE
 
 !        Update shape functions for NURBS
          IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, e)
@@ -122,6 +164,11 @@
          lR  = 0._RKIND
          lK  = 0._RKIND
          lKd = 0._RKIND
+         lK0 = 0._RKIND
+!          lRp = 0._RKIND
+!          lRtmp = 0._RKIND
+!          lRtau_fd = 0._RKIND
+!          lRtau = 0._RKIND
 
 !        Set function spaces for velocity and pressure.
          CALL GETTHOODFS(fs, lM, vmsStab, 1)
@@ -172,7 +219,20 @@
                CASE (phys_struct)
                   CALL STRUCT3D(fs(1)%eNoN, nFn, w, fs(1)%N(:,g), Nwx,
      2               al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lR, lK,
-     3               grInt, lVWP)
+     3               grInt, lVWP, lRtau)
+!
+!!                 check Jacobian with finite differences
+!                  tol = 1.E-6_RKIND
+!
+!!                 perturb wss
+!                  lVWP(7,:) = lVWP(7,:) + tol
+!
+!                  CALL STRUCT3D(fs(1)%eNoN, nFn, w, fs(1)%N(:,g), Nwx,
+!     2               al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lRp, lK0,
+!     3               grInt, lVWP, lRtmp)
+!
+!!                 restore wss
+!                  lVWP(7,:) = lVWP(7,:) - tol
 
 !               Update g&r variables
                 IF (ALLOCATED(lM%grVn)) lM%grVo(:,g,e) = grInt(1:nGrInt)
@@ -208,6 +268,17 @@
                END SELECT
             END IF
          END DO ! g: loop
+!
+!!         calculate finite difference
+!          lRtau_fd = (lRp - lR) / tol
+!
+!          WRITE(*,*) ""
+!          WRITE(*,*) "analytical"
+!          WRITE(*,*) lRtau(1:3,:)
+!          WRITE(*,*) ""
+!          WRITE(*,*) "FD"
+!          WRITE(*,*) lRtau_fd(1:3,:)
+!          WRITE(*,*) ""
 
 !        Set function spaces for velocity and pressure.
          CALL GETTHOODFS(fs, lM, vmsStab, 2)
@@ -257,6 +328,125 @@
 
          DEALLOCATE(xwl, xql, Nwx, Nwxx, Nqx)
 
+      DEALLOCATE(xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lKd)
+
+      CALL DESTROY(fs(1))
+      CALL DESTROY(fs(2))
+
+      RETURN
+      END SUBROUTINE EVAL_FSI
+!####################################################################
+
+
+!     evaluates fsi with finite difference tangent matrix
+      SUBROUTINE EVAL_FSI_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR, lKfd)
+      USE COMMOD
+      USE ALLFUN
+      IMPLICIT NONE
+      TYPE(mshType), INTENT(INOUT) :: lM
+      INTEGER(KIND=IKIND), INTENT(IN) :: e
+      REAL(KIND=RKIND), INTENT(INOUT) :: Ag(tDof,tnNo), Yg(tDof,tnNo),
+     2   Dg(tDof,tnNo)
+      INTEGER(KIND=IKIND), INTENT(INOUT) :: ptr(lM%eNoN)
+      REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,lM%eNoN),
+     2  lK(dof*dof,lM%eNoN,lM%eNoN), lKfd(dof*dof,lM%eNoN,lM%eNoN)
+
+      REAL(KIND=RKIND), ALLOCATABLE :: lRp(:,:), lKtmp(:,:,:), du,
+     2  dlR(:,:)
+      INTEGER(KIND=IKIND) ii, jj, kk, ll
+      REAL(KIND=RKIND) :: afl
+
+      ALLOCATE(lRp(dof,lM%eNoN), lKtmp(dof*dof,lM%eNoN,lM%eNoN),
+     2         dlR(dof,lM%eNoN))
+
+!     time integration factors
+      afl     = eq(cEq)%af*eq(cEq)%beta*dt*dt
+
+!     central evaluation
+      CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+
+!     loop nodes
+      DO ii=1,dof
+        DO jj=1,lM%eNoN
+          du = 1.E-1_RKIND
+!
+!
+!!         perturb solution vector
+          Dg(ii,jj) = Dg(ii,jj) + du
+!
+!          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lKtmp, lRp)
+!
+!!          WRITE(*,*) "lR"
+!!          WRITE(*,*) lR(1:3,1)
+!!          WRITE(*,*) "lRp"
+!!          WRITE(*,*) lRp(1:3,1)
+!
+!!         restore solution vector
+          Dg(ii,jj) = Dg(ii,jj) - du
+!
+!!         calculate finite difference
+!          dlR = afl * (lRp - lR) / du
+!
+!!          WRITE(*,*) "dlR"
+!!          WRITE(*,*) dlR(1:3,1)
+!
+
+!         assign to tangent matrix
+          DO kk=1,dof
+            DO ll=1,lM%eNoN
+!              lKfd(ii+kk-1,jj,ll) = lKfd(ii+kk-1,jj,ll) + dlR(kk,ll)
+            END DO
+          END DO
+        END DO
+      END DO
+
+      END SUBROUTINE EVAL_FSI_FD
+
+
+
+!     make eval_fsi_tangent subroutine that returns lK and lR
+!     move construct_fsi to routine that calls eval_fsi and does assembly
+!     create new eval_fsi_tangent_fd subroutine that does fd gradients
+      SUBROUTINE CONSTRUCT_FSI(lM, Ag, Yg, Dg)
+      USE COMMOD
+      USE ALLFUN
+      IMPLICIT NONE
+      TYPE(mshType), INTENT(INOUT) :: lM
+      REAL(KIND=RKIND), INTENT(IN) :: Ag(tDof,tnNo), Yg(tDof,tnNo),
+     2   Dg(tDof,tnNo)
+
+      REAL(KIND=RKIND), ALLOCATABLE :: ptr(:), lR(:,:), lK(:,:,:),
+     2                                 lKfd(:,:,:)
+      INTEGER(KIND=IKIND) e, eNoN, cPhys
+
+      eNoN = lM%eNoN
+
+      ALLOCATE(ptr(eNoN), lR(dof,eNoN), lK(dof*dof,eNoN,eNoN),
+     2         lKfd(dof*dof,eNoN,eNoN))
+
+!     initialize
+!      lR   = 0._RKIND
+!      lK   = 0._RKIND
+!      lKfd = 0._RKIND
+
+!     Loop over all elements of mesh
+      DO e=1, lM%nEl
+        cPhys = eq(cEq)%dmn(cDmn)%phys
+        IF ((cPhys .NE. phys_fluid)  .AND.
+     2      (cPhys .NE. phys_lElas)  .AND.
+     3      (cPhys .NE. phys_struct) .AND.
+     4      (cPhys .NE. phys_ustruct)) CYCLE
+
+        CALL EVAL_FSI_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR, lKfd)
+!        CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+
+        IF (e.EQ.1) THEN
+          WRITE(*,*) "analytical"
+          WRITE(*,*) lK(1:3,1,1)
+          WRITE(*,*) "fd"
+          WRITE(*,*) lKfd(1:3,1,1)
+        END IF
+
 !        Assembly
 #ifdef WITH_TRILINOS
          IF (eq(cEq)%assmTLS) THEN
@@ -265,22 +455,16 @@
             CALL TRILINOS_DOASSEM(eNoN, ptr, lK, lR)
          ELSE
 #endif
-            IF (cPhys .EQ. phys_ustruct) THEN
-               CALL USTRUCT_DOASSEM(eNoN, ptr, lKd, lK, lR)
-            ELSE
+!            IF (cPhys .EQ. phys_ustruct) THEN
+!               CALL USTRUCT_DOASSEM(eNoN, ptr, lKd, lK, lR)
+!            ELSE
                CALL DOASSEM(eNoN, ptr, lK, lR)
-            END IF
+!            END IF
 #ifdef WITH_TRILINOS
          END IF
 #endif
       END DO ! e: loop
 
-      DEALLOCATE(ptr, xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lR, lK,
-     2   lKd)
+      DEALLOCATE(ptr, lR, lK)
 
-      CALL DESTROY(fs(1))
-      CALL DESTROY(fs(2))
-
-      RETURN
       END SUBROUTINE CONSTRUCT_FSI
-!####################################################################
