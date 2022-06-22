@@ -36,6 +36,7 @@
 !
 !--------------------------------------------------------------------
 
+!     evaluates fsi in an element
       SUBROUTINE EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
       USE COMMOD
       USE ALLFUN
@@ -338,7 +339,7 @@
 !####################################################################
 
 
-!     evaluates fsi with finite difference tangent matrix
+!     evaluates fsi in an element with finite difference tangent matrix
       SUBROUTINE EVAL_FSI_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR, lKfd)
       USE COMMOD
       USE ALLFUN
@@ -353,14 +354,20 @@
 
       REAL(KIND=RKIND), ALLOCATABLE :: lRp(:,:), lKtmp(:,:,:), du,
      2  dlR(:,:)
-      INTEGER(KIND=IKIND) ii, jj, kk, ll
-      REAL(KIND=RKIND) :: afl
+      INTEGER(KIND=IKIND), ALLOCATABLE :: ptrtmp(:)
+      INTEGER(KIND=IKIND) ii, jj, kk, ll, Ac, dd
+      REAL(KIND=RKIND) :: fa, fy, fd
 
       ALLOCATE(lRp(dof,lM%eNoN), lKtmp(dof*dof,lM%eNoN,lM%eNoN),
-     2         dlR(dof,lM%eNoN))
+     2         dlR(dof,lM%eNoN), ptrtmp(lM%eNoN))
 
 !     time integration factors
-      afl     = eq(cEq)%af*eq(cEq)%beta*dt*dt
+      fd = eq(cEq)%af*eq(cEq)%beta*dt*dt
+      fy = eq(cEq)%af*eq(cEq)%gam*dt
+      fa = eq(cEq)%am
+
+!     initialize
+      lKfd = 0._RKIND
 
 !     central evaluation
       CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
@@ -368,45 +375,59 @@
 !     loop nodes
       DO ii=1,dof
         DO jj=1,lM%eNoN
-          du = 1.E-1_RKIND
+          du = 1.E-8_RKIND
+
+!         global node id
+          Ac = lM%IEN(jj,e)
+
+!         perturb displacement vector
+          Dg(ii,Ac) = Dg(ii,Ac) + du
+
+          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptrtmp, lKtmp, lRp)
+
+!         restore displacement vector
+          Dg(ii,Ac) = Dg(ii,Ac) - du
 !
+!         calculate finite difference
+          dlR = fd * (lRp - lR) / du
+
+!         perturb velocity vector
+          Yg(ii,Ac) = Yg(ii,Ac) + du
+
+          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptrtmp, lKtmp, lRp)
+
+!         restore velocity vector
+          Yg(ii,Ac) = Yg(ii,Ac) - du
 !
-!!         perturb solution vector
-          Dg(ii,jj) = Dg(ii,jj) + du
+!         calculate finite difference
+          dlR = dlR + fy * (lRp - lR) / du
+
+!         perturb acceleration vector
+          Ag(ii,Ac) = Ag(ii,Ac) + du
+
+          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptrtmp, lKtmp, lRp)
+
+!         restore acceleration vector
+          Ag(ii,Ac) = Ag(ii,Ac) - du
 !
-!          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lKtmp, lRp)
-!
-!!          WRITE(*,*) "lR"
-!!          WRITE(*,*) lR(1:3,1)
-!!          WRITE(*,*) "lRp"
-!!          WRITE(*,*) lRp(1:3,1)
-!
-!!         restore solution vector
-          Dg(ii,jj) = Dg(ii,jj) - du
-!
-!!         calculate finite difference
-!          dlR = afl * (lRp - lR) / du
-!
-!!          WRITE(*,*) "dlR"
-!!          WRITE(*,*) dlR(1:3,1)
-!
+!         calculate finite difference
+          dlR = dlR + fa * (lRp - lR) / du
 
 !         assign to tangent matrix
           DO kk=1,dof
+            dd = (kk - 1) * dof + ii
             DO ll=1,lM%eNoN
-!              lKfd(ii+kk-1,jj,ll) = lKfd(ii+kk-1,jj,ll) + dlR(kk,ll)
+              lKfd(dd,ll,jj) = dlR(kk,ll)
             END DO
           END DO
+
         END DO
       END DO
 
       END SUBROUTINE EVAL_FSI_FD
 
 
-
-!     make eval_fsi_tangent subroutine that returns lK and lR
-!     move construct_fsi to routine that calls eval_fsi and does assembly
-!     create new eval_fsi_tangent_fd subroutine that does fd gradients
+!     evaluates elements and performs assembly
       SUBROUTINE CONSTRUCT_FSI(lM, Ag, Yg, Dg)
       USE COMMOD
       USE ALLFUN
@@ -416,35 +437,68 @@
      2   Dg(tDof,tnNo)
 
       REAL(KIND=RKIND), ALLOCATABLE :: ptr(:), lR(:,:), lK(:,:,:),
-     2                                 lKfd(:,:,:)
-      INTEGER(KIND=IKIND) e, eNoN, cPhys
+     2                                 lKfd(:,:,:), diff(:,:,:)
+      INTEGER(KIND=IKIND) e, eNoN, cPhys, ii, jj, kk, ll, dd
 
       eNoN = lM%eNoN
 
       ALLOCATE(ptr(eNoN), lR(dof,eNoN), lK(dof*dof,eNoN,eNoN),
-     2         lKfd(dof*dof,eNoN,eNoN))
-
-!     initialize
-!      lR   = 0._RKIND
-!      lK   = 0._RKIND
-!      lKfd = 0._RKIND
+     2         lKfd(dof*dof,eNoN,eNoN), diff(dof*dof,eNoN,eNoN))
 
 !     Loop over all elements of mesh
       DO e=1, lM%nEl
+        cDmn  = DOMAIN(lM, cEq, e)
         cPhys = eq(cEq)%dmn(cDmn)%phys
         IF ((cPhys .NE. phys_fluid)  .AND.
      2      (cPhys .NE. phys_lElas)  .AND.
      3      (cPhys .NE. phys_struct) .AND.
      4      (cPhys .NE. phys_ustruct)) CYCLE
 
-        CALL EVAL_FSI_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR, lKfd)
-!        CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+        IF (cPhys .EQ. phys_struct) THEN
+          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+          CALL EVAL_FSI_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR, lKfd)
+          lK = lKfd
 
-        IF (e.EQ.1) THEN
-          WRITE(*,*) "analytical"
-          WRITE(*,*) lK(1:3,1,1)
-          WRITE(*,*) "fd"
-          WRITE(*,*) lKfd(1:3,1,1)
+!          DO ii=1,dof
+!            DO jj=1,dof
+!              DO kk=1,eNoN
+!                DO ll=1,eNoN
+!                  dd = (jj - 1) * dof + ii
+!                  IF (.NOT.ISZERO(lK(dd,kk,ll))) THEN
+!                    diff(dd,kk,ll) = ABS((lK(dd,kk,ll) - lKfd(dd,kk,ll))
+!     2                      / lK(dd,kk,ll))
+!                  ELSE
+!                    diff(dd,kk,ll) = 0._RKIND
+!                  END IF
+!                END DO
+!              END DO
+!            END DO
+!          END DO
+!
+!          WRITE(*,*) e
+!          WRITE(*,*) MAXVAL(diff)
+
+!          IF (e.EQ.1) THEN
+!            WRITE(*,*) lKfd
+!          END IF
+
+!            IF (MAXVAL(diff) .GT. 1.E-3_RKIND) THEN
+!              WRITE(*,*) e
+!              DO kk=1,eNoN
+!                DO ll=1,eNoN
+!                  WRITE(*,*) kk,ll
+!                    DO ii=1,3
+!                      jj = (ii - 1) * 4
+!!                      WRITE(*,*) lK(jj+1:jj+3,kk,ll)
+!                      WRITE(*,*) lKfd(jj+1:jj+3,kk,ll)
+!!                      WRITE(*,*) diff(jj+1:jj+4,kk,ll)
+!                    END DO
+!                    WRITE(*,*) ""
+!                  END DO
+!              END DO
+!            END IF
+        ELSE
+          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
         END IF
 
 !        Assembly
