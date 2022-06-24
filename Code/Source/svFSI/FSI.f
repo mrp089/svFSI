@@ -93,6 +93,8 @@
          dwss = 0._RKIND
          CALL BPOST(msh(1), wss, wsse, dwss, Yg, Dg, outGrp_WSS)
 
+!       is wss dependency correct?
+
 !        fixme: run in parallel (evaluate for this element only)
 !        todo: work with non-uniform meshes
 !        map from fluid to solid interface
@@ -116,6 +118,7 @@
                      IF (vWP0(9,msh(2)%gN(iSolid2)) .EQ. iInt) THEN
                         vWP0(7,msh(2)%gN(iSolid2)) = swss
                         vWP0(10:12,msh(2)%gN(iSolid2)) = sdwss
+!                        WRITE(*,*) swss
                      END IF
                   END DO
                END IF
@@ -352,13 +355,14 @@
       REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,lM%eNoN),
      2  lK(dof*dof,lM%eNoN,lM%eNoN), lKfd(dof*dof,lM%eNoN,lM%eNoN)
 
-      REAL(KIND=RKIND), ALLOCATABLE :: lRp(:,:), lKtmp(:,:,:), du,
-     2  dlR(:,:)
+      REAL(KIND=RKIND), ALLOCATABLE :: lRp(:,:), lRm(:,:),
+     2  lKtmp(:,:,:), du, dlR(:,:)
       INTEGER(KIND=IKIND), ALLOCATABLE :: ptrtmp(:)
       INTEGER(KIND=IKIND) ii, jj, kk, ll, Ac, dd
       REAL(KIND=RKIND) :: fa, fy, fd
 
-      ALLOCATE(lRp(dof,lM%eNoN), lKtmp(dof*dof,lM%eNoN,lM%eNoN),
+      ALLOCATE(lRp(dof,lM%eNoN), lRm(dof,lM%eNoN),
+     3         lKtmp(dof*dof,lM%eNoN,lM%eNoN),
      2         dlR(dof,lM%eNoN), ptrtmp(lM%eNoN))
 
 !     time integration factors
@@ -387,7 +391,7 @@
 
 !         restore displacement vector
           Dg(ii,Ac) = Dg(ii,Ac) - du
-!
+
 !         calculate finite difference
           dlR = fd * (lRp - lR) / du
 
@@ -398,7 +402,7 @@
 
 !         restore velocity vector
           Yg(ii,Ac) = Yg(ii,Ac) - du
-!
+
 !         calculate finite difference
           dlR = dlR + fy * (lRp - lR) / du
 
@@ -409,7 +413,7 @@
 
 !         restore acceleration vector
           Ag(ii,Ac) = Ag(ii,Ac) - du
-!
+
 !         calculate finite difference
           dlR = dlR + fa * (lRp - lR) / du
 
@@ -455,7 +459,7 @@
      4      (cPhys .NE. phys_ustruct)) CYCLE
 
         IF (cPhys .EQ. phys_struct) THEN
-          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+!          CALL EVAL_FSI(e, lM, Ag, Yg, Dg, ptr, lK, lR)
           CALL EVAL_FSI_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR, lKfd)
           lK = lKfd
 
@@ -474,7 +478,7 @@
 !              END DO
 !            END DO
 !          END DO
-!
+
 !          WRITE(*,*) e
 !          WRITE(*,*) MAXVAL(diff)
 
@@ -490,8 +494,8 @@
 !                    DO ii=1,3
 !                      jj = (ii - 1) * 4
 !!                      WRITE(*,*) lK(jj+1:jj+3,kk,ll)
-!                      WRITE(*,*) lKfd(jj+1:jj+3,kk,ll)
-!!                      WRITE(*,*) diff(jj+1:jj+4,kk,ll)
+!!                      WRITE(*,*) lKfd(jj+1:jj+3,kk,ll)
+!                      WRITE(*,*) diff(jj+1:jj+3,kk,ll)
 !                    END DO
 !                    WRITE(*,*) ""
 !                  END DO

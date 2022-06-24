@@ -44,20 +44,21 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		std::terminate();
 
 	// couple wss
-	const bool coup_wss = true;
+	const bool coup_wss = false;
 
-	const bool aneurysm = false;
+	const bool aneurysm = true;
 	const bool aneurysm_asym = false;
 	
 	double KsKi = 0.35;
-//	double KsKi = 0.0;
+//	double KsKi = 0.1;
+//	double KsKi = 1.0;
 
 	// get current and end times
 	const double t = *time;
 //	const double t = eVWP[7];
 
 	// time step size
-	const double dt = 1.0e-1;
+	const double dt = 1.0e-4;
 
 	// number of time steps between updates
 	const int n_t_update = 1;
@@ -66,7 +67,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 100;
 
 	// number of time steps total
-	const int n_t_end = 2000;
+	const int n_t_end = 1000;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -184,13 +185,13 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// pick one Gauss point for output
 	bool out = false;
 	if (abs(eVWP[0] - 0.678501) < 1.0e-6)
-		if (abs(eVWP[1] - 0.0088052) < 1.0e-6)
-			if (abs(eVWP[2] - 0.0211325) < 1.0e-6)
+		if (abs(eVWP[1] - 0.0264156) < 1.0e-6)
+			if (abs(eVWP[2] - 0.211325) < 1.0e-6)
 				out = true;
-	out = false;
+//	out = false;
 
-	if(out)
-		std::cout<<"mode "<<mode<<std::endl;
+//	if(out)
+//		std::cout<<"mode "<<mode<<std::endl;
 
 
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156

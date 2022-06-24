@@ -363,8 +363,7 @@
                   NxP = NxP + Ptau(ii,jj) * Nx(jj,a)
                END DO
                DO jj=1,3
-!                  dd = (ii - 1) * 3 + jj
-                  dd = (jj - 1) * 3 + ii
+                  dd = (jj - 1) * dof + ii
                   lK(dd,a,b) = lK(dd,a,b) + w*afl*(NxP * dwss(jj,b))
                END DO
             END DO
