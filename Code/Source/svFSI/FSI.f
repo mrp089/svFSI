@@ -119,6 +119,12 @@
                         vWP0(7,msh(2)%gN(iSolid2)) = swss
                         vWP0(10:12,msh(2)%gN(iSolid2)) = sdwss
 !                        WRITE(*,*) swss
+
+!                       store wss of previously converged time step
+                        IF (eq(cEq)%itr .EQ. 1) THEN
+                          vWP0(13,msh(2)%gN(iSolid2)) = swss
+!                          WRITE(*,*) vWP0(:,a)
+                       END IF
                      END IF
                   END DO
                END IF

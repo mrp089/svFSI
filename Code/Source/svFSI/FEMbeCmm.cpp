@@ -44,30 +44,30 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		std::terminate();
 
 	// couple wss
-	const bool coup_wss = false;
+	const bool coup_wss = true;
 
 	const bool aneurysm = true;
 	const bool aneurysm_asym = false;
 	
 	double KsKi = 0.35;
-//	double KsKi = 0.1;
+//	double KsKi = 0.05;
 //	double KsKi = 1.0;
 
 	// get current and end times
-	const double t = *time;
-//	const double t = eVWP[7];
+//	const double t = *time;
+	const double t = eVWP[7];
 
 	// time step size
-	const double dt = 1.0e-4;
+	const double dt = 1.0;
 
 	// number of time steps between updates
 	const int n_t_update = 1;
 
 	// number of time steps for prestressing
-	const int n_t_pre = 100;
+	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 1000;
+	const int n_t_end = 11;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -95,6 +95,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// WSS
 	const double tau = eVWP[6];
+
+	// WSS of previous time step
+	const double tau_old = eVWP[12];
 
 	// dWSS
 	const vec3d dtau(eVWP[9],eVWP[10], eVWP[11]);
@@ -444,13 +447,36 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// compute current stresses
 
 		const double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;				// rIrIo -> rIorIo = 1 for F -> Fo
+
+		const double r_ratio = ro/rIo - (ro/rIo - 1) * lr/lt;
+
+		const double coup_omega = 0.25;
+		const double tau_relax = coup_omega * tau + (1.0 - coup_omega) * tau_old;
 		double tau_ratio;
 		if (coup_wss)
-			tau_ratio = tau/tauo;
+//			tau_ratio = 1; // extremely stable!!
+//			tau_ratio = pow(rIrIo,-3); // works perfectly
+//			tau_ratio = tau/tauo;
+//			tau_ratio = tau/tauo/rIrIo;
+//			tau_ratio = tau_relax/tauo;
+//			tau_ratio = tau_relax/tauo * pow(rIrIo,-3);
+//			tau_ratio = tau_relax/tauo * lr; // works for minimal.json, axial oscillations in fsg_coarse.json
+//			tau_ratio = tau_relax/tauo/rIrIo/rIrIo; // converges but starts oscillating
+//			tau_ratio = tau/tauo * r_ratio; // starts oscillating
+//			tau_ratio = tau_relax/tauo * pow(r_ratio,3); // doesn't converge
+//			tau_ratio = pow(tau/tauo -1, 3) + 1; // super stable but starts oscillating when increasing pressure
+//			tau_ratio = (tanh(tau/tauo - 1.0) + 1) * r_ratio;
+			tau_ratio = pow(tanh(tau/tauo - 1.0), 3) + 1; // stable, starts oscillating in hypertension with minimal.json
 		else
 			tau_ratio = pow(rIrIo,-3);
-		if(out)
-			std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
+//		if(out)
+//		{
+//			std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
+//			std::cout<<"rIrIo "<<rIrIo<<std::endl;
+//			std::cout<<"tau_old "<<tau_old<<" tau "<<tau<<" tau_relax "<<tau_relax<<std::endl;
+//			std::cout<<lr<<std::endl;
+//			std::cout<<"tau_ratio "<<tau_ratio<<" r_ratio "<<r_ratio<<std::endl;
+//		}
 
 		mat3ds sNm = phim*smo;									// phim*smhato = phim*smo
 		mat3ds sNc = phic*sco;									// phic*schato = phic*sco
@@ -729,6 +755,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 				grInt[k] = Fio(i,j);
 				k++;
 			}
+		grInt[28] = tau;
 	}
 	// store g&r state
 	if (mode == gr)
