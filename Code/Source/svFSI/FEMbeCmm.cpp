@@ -49,13 +49,18 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const bool aneurysm = true;
 	const bool aneurysm_asym = false;
 	
-	double KsKi = 0.35;
-//	double KsKi = 0.05;
-//	double KsKi = 1.0;
+//	double KsKi = 0.35;
+//	double KsKi = 0.0;
+	double KsKi = 0.1;
 
-	// get current and end times
-//	const double t = *time;
-	const double t = eVWP[7];
+	// get current time
+	double t;
+	if (coup_wss)
+		// time from partitioned coupling (passed through input file)
+		t = eVWP[7];
+	else
+		// time from monolithic coupling (svFSI provided)
+		t = *time;
 
 	// time step size
 	const double dt = 1.0;
@@ -456,7 +461,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		if (coup_wss)
 //			tau_ratio = 1; // extremely stable!!
 //			tau_ratio = pow(rIrIo,-3); // works perfectly
-//			tau_ratio = tau/tauo;
+			tau_ratio = tau/tauo;
 //			tau_ratio = tau/tauo/rIrIo;
 //			tau_ratio = tau_relax/tauo;
 //			tau_ratio = tau_relax/tauo * pow(rIrIo,-3);
@@ -466,7 +471,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //			tau_ratio = tau_relax/tauo * pow(r_ratio,3); // doesn't converge
 //			tau_ratio = pow(tau/tauo -1, 3) + 1; // super stable but starts oscillating when increasing pressure
 //			tau_ratio = (tanh(tau/tauo - 1.0) + 1) * r_ratio;
-			tau_ratio = pow(tanh(tau/tauo - 1.0), 3) + 1; // stable, starts oscillating in hypertension with minimal.json
+//			tau_ratio = pow(tanh(tau/tauo - 1.0), 3) + 1; // stable, starts oscillating in hypertension with minimal.json
+//			tau_ratio = (tanh(tau/tauo - 1.0) + 1);
 		else
 			tau_ratio = pow(rIrIo,-3);
 //		if(out)
@@ -477,6 +483,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //			std::cout<<lr<<std::endl;
 //			std::cout<<"tau_ratio "<<tau_ratio<<" r_ratio "<<r_ratio<<std::endl;
 //		}
+		std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
 
 		mat3ds sNm = phim*smo;									// phim*smhato = phim*smo
 		mat3ds sNc = phic*sco;									// phic*schato = phic*sco
