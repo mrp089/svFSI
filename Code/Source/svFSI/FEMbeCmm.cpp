@@ -51,7 +51,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	
 //	double KsKi = 0.35;
 //	double KsKi = 0.0;
-	double KsKi = 0.1;
+//	double KsKi = 1.5;
+	double KsKi = 0.35;
+
+	// length multiplier
+	const double mult = 4.0;
 
 	// get current time
 	double t;
@@ -85,7 +89,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double imper = 0.00;					// imper > 0 for TORTUOSITY (see Matlab script <NodesElementsAsy.m>) | 0.00 | 20.0
 	const double rIo = 0.6468;					// 0.6468 | 0.5678
 	const double hwaves = 2.0;
-	const double lo = 15.0;
+	const double lo = 15.0 * mult;
 
 	const vec3d  X(eVWP[3], eVWP[4], eVWP[5]);
 	const vec3d  Xcl(0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z);		// center line
@@ -211,7 +215,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double z_om = lo/2.0;
 
 		// 8b
-		const double z_od = lo/4.0;
+		const double z_od = lo/4.0/mult;
 		const int vz = 2;
 		const double phi_e_hm = 0.65;
 		// const double phi_e_hm = 0.3;
@@ -483,7 +487,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //			std::cout<<lr<<std::endl;
 //			std::cout<<"tau_ratio "<<tau_ratio<<" r_ratio "<<r_ratio<<std::endl;
 //		}
-		std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
+//		std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
 
 		mat3ds sNm = phim*smo;									// phim*smhato = phim*smo
 		mat3ds sNc = phic*sco;									// phic*schato = phic*sco
