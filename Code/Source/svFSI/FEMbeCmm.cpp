@@ -44,18 +44,19 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		std::terminate();
 
 	// couple wss
-	const bool coup_wss = true;
+	const bool coup_wss = false;
 
-	const bool aneurysm = true;
+	const bool aneurysm = false;
 	const bool aneurysm_asym = false;
 	
-//	double KsKi = 0.35;
+	double KsKi = 0.35;
 //	double KsKi = 0.0;
 //	double KsKi = 1.5;
-	double KsKi = 0.35;
+
+	const double curve = 0.0;
 
 	// length multiplier
-	const double mult = 4.0;
+	const double mult = 1.0;
 
 	// get current time
 	double t;
@@ -86,13 +87,14 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double partialtime = endtime;			// partialtime <= endtime | 10.0 | 10.4 (for TI calculation)
 	const double sgr = std::min(t,partialtime);		// min(t,partialtime) | min(t,9.0)
 
-	const double imper = 0.00;					// imper > 0 for TORTUOSITY (see Matlab script <NodesElementsAsy.m>) | 0.00 | 20.0
+//	const double imper = 0.00;					// imper > 0 for TORTUOSITY (see Matlab script <NodesElementsAsy.m>) | 0.00 | 20.0
 	const double rIo = 0.6468;					// 0.6468 | 0.5678
 	const double hwaves = 2.0;
 	const double lo = 15.0 * mult;
 
 	const vec3d  X(eVWP[3], eVWP[4], eVWP[5]);
-	const vec3d  Xcl(0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z);		// center line
+//	const vec3d  Xcl(0.0, imper/100.0*rIo*sin(hwaves*M_PI*X.z/lo), X.z);		// center line
+	const vec3d  Xcl(curve / 2.0 * (1.0 - cos(2.0 * M_PI * X.z / lo)), 0.0, X.z);		// center line
 	vec3d NX(X.x-Xcl.x,X.y-Xcl.y,X.z-Xcl.z);								// radial vector
 
 	const double ro = sqrt(NX*NX);
@@ -113,11 +115,13 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //	std::cout<<eVWP[9]<<" "<<eVWP[10]<<" "<<eVWP[11]<<std::endl;
 
 	// pointwise, consistent with mesh generated with Matlab script <NodesElementsAsy.m>
-	const vec3d n2(0.0, imper/100.0*rIo*hwaves*M_PI/lo*cos(hwaves*M_PI*X.z/lo), 1.0);
+//	const vec3d   n2(0.0, imper/100.0*rIo*hwaves*M_PI/lo*cos(hwaves*M_PI*X.z/lo), 1.0);
+	const vec3d n2(curve * M_PI / lo * sin(2.0 * M_PI * X.z / lo), 0.0, 1.0);
 	const vec3d n1(-NX.y, NX.x, NX.z);
-	N[2] = n2; N[2] = N[2]/sqrt(N[2]*N[2]);		// axial = d(Xcl)/d(z)
-	N[1] = n1;																					// circumferential
-	N[0] = N[2]^N[1];
+	N[2] = n2;
+	N[2] = N[2]/sqrt(N[2]*N[2]);		// axial = d(Xcl)/d(z)
+	N[1] = n1;							// circumferential
+	N[0] = N[2]^N[1];					// radial
 	
 	const double azimuth = acos(-NX.y);							// azimuth wrt axis -Y
 
@@ -214,14 +218,26 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// location of aneurysm (= middle)
 		const double z_om = lo/2.0;
 
-		// 8b
-		const double z_od = lo/4.0/mult;
-		const int vz = 2;
-		const double phi_e_hm = 0.65;
-		// const double phi_e_hm = 0.3;
+		double theta_od;
+		double phi_e_hm;
+		int vz;
+		double z_od;
+		if (aneurysm_asym)
+		{
+			z_od = lo/3.0/mult;
+			vz = 5;
+			phi_e_hm = 0.65;
 
-		// 8d
-		const double theta_od = 3.0;
+			// 8d
+			theta_od = 3.0;
+		}
+		else
+		{
+			// 8b, 8c
+			z_od = lo/4.0/mult;
+			vz = 2;
+			phi_e_hm = 0.65;
+		}
 
 		// time factor [0, 1]
 		const double f_time = (sgr - pretime) / (endtime - pretime);
