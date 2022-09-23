@@ -44,10 +44,14 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		std::terminate();
 
 	// couple wss
-	const bool coup_wss = false;
+	const bool coup_wss = true;
 
-	const bool aneurysm = false;
-	const bool aneurysm_asym = false;
+	// set example
+	enum Example { none, aneurysm, aneurysm_asym, tortuosity };
+//	Example example = none;
+//	Example example = aneurysm;
+//	Example example = aneurysm_asym;
+	Example example = tortuosity;
 	
 	double KsKi = 0.35;
 //	double KsKi = 0.0;
@@ -77,7 +81,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 11;
+	const int n_t_end = 21;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -125,27 +129,27 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	
 	const double azimuth = acos(-NX.y);							// azimuth wrt axis -Y
 
-	const double phieo = 0.34;								// 0.34 (CMAME | KNOCKOUTS) | 1.00 (TEVG) | 1.0/3.0 (TEVG)
-	const double phimo = 0.5*(1.0-phieo);
-	const double phico = 0.5*(1.0-phieo);
+	double phieo = 0.34;								// 0.34 (CMAME | KNOCKOUTS) | 1.00 (TEVG) | 1.0/3.0 (TEVG)
+	double phimo = 0.5*(1.0-phieo);
+	double phico = 0.5*(1.0-phieo);
 
 	const double eta = 1.0;									// 1.0 | 1.0/3.0 (for uniform cases) | 0.714
 
 	double mu = 89.71;
-	const double Get = 1.90;
-	const double Gez = 1.62;
+	double Get = 1.90;
+	double Gez = 1.62;
 
 	double alpha = 0.522;								// original orientation of diagonal collagen | 0.522 (CMAME | KNOCKOUTS) | 0.8713 (TEVG)
 
 	// original homeostatic parameters (adaptive)
 
 	// passive
-	const double cm = 261.4;									// 261.4 (CMAME | KNOCKOUTS) | 46.61 (TEVG)
-	const double dm = 0.24;
-	const double Gm = 1.20;
-	const double cc = 234.9;									// 234.9 (CMAME | KNOCKOUTS) | 328.475 (TEVG)
-	const double dc = 4.08;
-	const double Gc = 1.25;
+	double cm = 261.4;									// 261.4 (CMAME | KNOCKOUTS) | 46.61 (TEVG)
+	double dm = 0.24;
+	double Gm = 1.20;
+	double cc = 234.9;									// 234.9 (CMAME | KNOCKOUTS) | 328.475 (TEVG)
+	double dc = 4.08;
+	double Gc = 1.25;
 
 	// orientation fractions for collagen
 	const double betat = 0.056;
@@ -159,13 +163,16 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double Tmax = 250.0 * 0.0;							// 250.0 | 50.0 | 150.0 (for uniform cases, except for contractility -> 250)
 	const double lamM = 1.1;
 	const double lam0 = 0.4;
-	const double CB = sqrt(log(2.0));							// such that (1-exp(-CB^2)) = 0.5
-	const double CS = 0.5*CB * 1.0;							// such that (1-exp( -C^2)) = 0.0 for lt = 1/(1+CB/CS)^(1/3) = 0.7 and (1-exp(-C^2)) = 0.75 for lt = 2.0
+	double CB = sqrt(log(2.0));							// such that (1-exp(-CB^2)) = 0.5
+	double CS = 0.5*CB * 1.0;							// such that (1-exp( -C^2)) = 0.0 for lt = 1/(1+CB/CS)^(1/3) = 0.7 and (1-exp(-C^2)) = 0.75 for lt = 2.0
 
-	const double EPS  = 1.0+(1.0-1.0)*(sgr-1.0)/(endtime-1.0);
+	// time factor [0, 1]
+	const double f_time = (sgr - pretime) / (endtime - pretime);
 
-	const double KfKi   = 1.0;
-	const double inflam = 0.0*(sgr-1.0)/(endtime-1.0);
+	const double EPS  = 1.0+(1.0-1.0)*f_time;
+
+	double KfKi   = 1.0;
+	const double inflam = 0.0*f_time;
 
 	double aexp = 1.0;									// 1.0 (KNOCKOUTS | TEVG) | 0.0 (CMAME | TORTUOSITY)
 
@@ -209,9 +216,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //	if(out)
 //		std::cout<<"mode "<<mode<<std::endl;
 
-
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
-	if (aneurysm and mode == gr) {
+	if ((example == aneurysm or example == aneurysm_asym) and mode == gr) {
 		// no fiber reorientation
 		aexp = 0.0;
 
@@ -222,7 +228,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		double phi_e_hm;
 		int vz;
 		double z_od;
-		if (aneurysm_asym)
+		if (example == aneurysm_asym)
 		{
 			z_od = lo/3.0/mult;
 			vz = 5;
@@ -239,19 +245,59 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 			phi_e_hm = 0.65;
 		}
 
-		// time factor [0, 1]
-		const double f_time = (sgr - pretime) / (endtime - pretime);
-
 		// axial factor (0, 1]
 		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vz));
 
 		// azimuth factor (0, 1]
 		double f_cir = 1.0;
-		if (aneurysm_asym)
+		if (example == aneurysm_asym)
 			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
 
 		mu   *= 1.0 - f_time * f_axi * f_cir * phi_e_hm;
 		KsKi *= 1.0 - f_time * f_axi;
+	}
+
+	if (example == tortuosity){
+		// set constants to example
+		phieo = 0.331;
+		phimo = 0.265;
+		phico = 0.404;
+
+		mu = 88.46;									// 88.46
+
+		alpha = 0.665;								// 0.615 (110) / 0.665 (120)
+
+		cm = 419.1;									// 419.1
+		dm = 0.105;									// 0.105
+		Gm = 1.198;									// 1.198
+		cc = 1278.;									// 1278.
+		dc = 11.10;									// 11.10
+		Gc = 1.092;									// 1.092
+
+		KsKi = 0.0;
+		KfKi = 0.0;
+		aexp = 0.0;									// 1.0 (KNOCKOUTS) | 0.0 (CMAME and TORTUOSITY)
+
+		// change parameters over time
+		if (mode == gr){
+			const double muuni = 0.850*mu;						// 0.825 (110) / 0.850 (120)
+			const double alpout = 1.00*alpha;
+			const double alpin  = 1.32*alpha;						// 1.55 (110) / 1.32 (120)
+
+			mu = mu + (muuni - mu) * f_time;
+			alpha = alpout + (alpin - alpout) * f_time;
+//
+//			if (X.z < (lo/2.0) + eps) {
+//				double azimutho = 1.0 * M_PI;					// crest | (20wks) 1.0 | (36wks) 0.5 | 0.0 (52wks)
+//				mu = mu + 1.0 * (muuni - mu) / 2.0 * f_time + 1.0 * (muuni - mu) / 2.0 * f_time;	// * (1.0-cos(2.0*M_PI*X.z/(lo/2.0)))/2.0*exp(-pow(abs((azimuth-azimutho)/(M_PI/0.5)),2))
+//				alpha = alpout + 1.0 * (alpin - alpout) / 2.0 * f_time + 1.0 * (alpin - alpout) / 2.0 * f_time;	// * (1.0-cos(2.0*M_PI*X.z/(lo/2.0)))/2.0*exp(-pow(abs((azimuth-azimutho)/(M_PI/0.5)),2))
+//			}
+//			else {
+//				double azimutho = 0.0 * M_PI;					// through | (20wks) 0.0 | (36wks) 0.5 | 1.0 (52wks)
+//				mu = mu + 1.0 * (muuni - mu) / 2.0 * f_time + 1.0 * (muuni - mu) / 2.0 * f_time;	// * (1.0-cos(2.0*M_PI*X.z/(lo/2.0)))/2.0*exp(-pow(abs((azimuth-azimutho)/(M_PI/0.5)),2))
+//				alpha = alpout + 1.0 * (alpin - alpout) / 2.0 * f_time + 1.0 * (alpin - alpout) / 2.0 * f_time;	// * (1.0-cos(2.0*M_PI*X.z/(lo/2.0)))/2.0*exp(-pow(abs((azimuth-azimutho)/(M_PI/0.5)),2))
+//			}
+		}
 	}
 
 	// Ge from spectral decomposition
