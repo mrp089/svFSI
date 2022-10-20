@@ -44,18 +44,16 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		std::terminate();
 
 	// couple wss
-	const bool coup_wss = true;
+	const bool coup_wss = false;
 
 	// set example
-	enum Example { none, aneurysm, aneurysm_asym, tortuosity };
-//	Example example = none;
-//	Example example = aneurysm;
-//	Example example = aneurysm_asym;
-	Example example = tortuosity;
+	enum Example { none, aneurysm, tortuosity, stenosis };
+	Example example = stenosis;
+	const bool example_asym = false;
 	
 	double KsKi = 0.35;
 //	double KsKi = 0.0;
-//	double KsKi = 1.5;
+//	double KsKi = 1.0;
 
 	const double curve = 0.0;
 
@@ -81,7 +79,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 21;
+	const int n_t_end = 11;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -217,7 +215,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //		std::cout<<"mode "<<mode<<std::endl;
 
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
-	if ((example == aneurysm or example == aneurysm_asym) and mode == gr) {
+	if (example == aneurysm and mode == gr) {
 		// no fiber reorientation
 		aexp = 0.0;
 
@@ -228,7 +226,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		double phi_e_hm;
 		int vz;
 		double z_od;
-		if (example == aneurysm_asym)
+		if (example_asym)
 		{
 			z_od = lo/3.0/mult;
 			vz = 5;
@@ -250,7 +248,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		// azimuth factor (0, 1]
 		double f_cir = 1.0;
-		if (example == aneurysm_asym)
+		if (example_asym)
 			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
 
 		mu   *= 1.0 - f_time * f_axi * f_cir * phi_e_hm;
@@ -286,18 +284,31 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 			mu = mu + (muuni - mu) * f_time;
 			alpha = alpout + (alpin - alpout) * f_time;
-//
-//			if (X.z < (lo/2.0) + eps) {
-//				double azimutho = 1.0 * M_PI;					// crest | (20wks) 1.0 | (36wks) 0.5 | 0.0 (52wks)
-//				mu = mu + 1.0 * (muuni - mu) / 2.0 * f_time + 1.0 * (muuni - mu) / 2.0 * f_time;	// * (1.0-cos(2.0*M_PI*X.z/(lo/2.0)))/2.0*exp(-pow(abs((azimuth-azimutho)/(M_PI/0.5)),2))
-//				alpha = alpout + 1.0 * (alpin - alpout) / 2.0 * f_time + 1.0 * (alpin - alpout) / 2.0 * f_time;	// * (1.0-cos(2.0*M_PI*X.z/(lo/2.0)))/2.0*exp(-pow(abs((azimuth-azimutho)/(M_PI/0.5)),2))
-//			}
-//			else {
-//				double azimutho = 0.0 * M_PI;					// through | (20wks) 0.0 | (36wks) 0.5 | 1.0 (52wks)
-//				mu = mu + 1.0 * (muuni - mu) / 2.0 * f_time + 1.0 * (muuni - mu) / 2.0 * f_time;	// * (1.0-cos(2.0*M_PI*X.z/(lo/2.0)))/2.0*exp(-pow(abs((azimuth-azimutho)/(M_PI/0.5)),2))
-//				alpha = alpout + 1.0 * (alpin - alpout) / 2.0 * f_time + 1.0 * (alpin - alpout) / 2.0 * f_time;	// * (1.0-cos(2.0*M_PI*X.z/(lo/2.0)))/2.0*exp(-pow(abs((azimuth-azimutho)/(M_PI/0.5)),2))
-//			}
 		}
+	}
+	if (example == stenosis and mode == gr)
+	{
+		// location (= middle)
+		const double z_om = lo/4.0;
+
+		const double phi_e_hm = 2.0;
+		const int vz = 2;
+		const double z_od = lo/16.0/mult;
+
+		// axial factor (0, 1]
+		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vz));
+
+		// azimuth factor (0, 1]
+		double f_cir = 1.0;
+		if (example_asym)
+		{
+			double theta_od = 2.0;
+			const int vz = 4;
+			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
+		}
+
+		mu   *= 1.0 + f_time * f_axi * f_cir * phi_e_hm;
+		KsKi *= 1.0 - f_time * f_axi * f_cir;
 	}
 
 	// Ge from spectral decomposition
