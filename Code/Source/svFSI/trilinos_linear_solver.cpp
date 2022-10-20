@@ -692,6 +692,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   Amesos_BaseSolver * Solver;
   Amesos Factory;
   Solver = Factory.Create("Klu", Problem);
+//  Solver = Factory.Create("Pardiso", Problem);
   if (Solver == 0)
   {
     std::cout<<"ERROR: Specified solver is not available"<<std::endl;
