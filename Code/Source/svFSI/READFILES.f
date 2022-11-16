@@ -1717,10 +1717,10 @@
             DO i=1, j
                READ (fid,*) rtmp
                lBc%gm%t(i) = rtmp
-               IF (i .EQ. 1) THEN
-                  IF (.NOT.ISZERO(rtmp)) err = "First time step"//
-     2               " should be zero in <"//TRIM(ctmp)//">"
-               ELSE
+               IF (i .NE. 1) THEN
+!                  IF (.NOT.ISZERO(rtmp)) err = "First time step"//
+!     2               " should be zero in <"//TRIM(ctmp)//">"
+!               ELSE
                   rtmp = rtmp - lBc%gm%t(i-1)
                   IF (ISZERO(rtmp) .OR. rtmp.LT.0._RKIND) err =
      2               "Non-increasing time trend is found in <"//
