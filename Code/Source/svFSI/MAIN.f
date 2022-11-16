@@ -43,7 +43,7 @@
 
       LOGICAL l1, l2, l3
       INTEGER(KIND=IKIND) i, iM, iBc, ierr, iEqOld, stopTS,
-     2   iFluid, iSolid1, iSolid2
+     2   iFluid, iSolid1, iSolid2, minTS
       REAL(KIND=RKIND) timeP(3)
 
       INTEGER(KIND=IKIND), ALLOCATABLE :: incL(:), iInt
@@ -78,7 +78,11 @@
 !     Initializing the solution vectors and constructing LHS matrix
 !     format
       CALL INITIALIZE(timeP)
-      stopTS = nTS
+
+!     Do at least these many time steps, even if larger than nTS
+      minTS = cTS + newTS
+      nTs = MAX(nTS, minTS)
+      stopTS = nTs
 
       dbg = 'Allocating intermediate variables'
       ALLOCATE(Ag(tDof,tnNo), Yg(tDof,tnNo), Dg(tDof,tnNo),

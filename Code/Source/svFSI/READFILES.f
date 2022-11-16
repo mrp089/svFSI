@@ -84,6 +84,7 @@
          saveIncr     = 10
          nITs         = 0
          startTS      = 0
+         newTS        = 0
          roInf        = 0.2_RKIND
          stFileName   = "stFile"
          iniFilePath  = ""
@@ -170,6 +171,7 @@
          nsymd = 3*(nsd-1)
 
          lPtr => list%get(nTs,"Number of time steps",1,ll=1)
+         lPtr => list%get(newTS,"Number of new time steps",ll=0)
          lPtr => list%get(startTS,"Starting time step",ll=0)
          lPtr => list%get(dt,"Time step size",1,lb=0._RKIND)
          lPtr => list%get(nITs,"Number of initialization time steps",

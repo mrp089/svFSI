@@ -883,6 +883,8 @@
       INTEGER(KIND=IKIND) nsd
 !     Number of time steps
       INTEGER(KIND=IKIND) nTS
+!     Number of new time steps
+      INTEGER(KIND=IKIND) newTS
 !     Number of initialization time steps
       INTEGER(KIND=IKIND) nITS
 !     stFiles record length
