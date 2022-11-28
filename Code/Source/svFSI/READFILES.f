@@ -1213,6 +1213,10 @@
                lEq%ls%PREC_Type = PREC_TRILINOS_ML
                lEq%useTLS = .TRUE.
                stmp = CLR("Trilinos-ML",3)
+            CASE ('trilinos-gr')
+               lEq%ls%PREC_Type = PREC_TRILINOS_GR
+               lEq%useTLS = .TRUE.
+               stmp = CLR("Trilinos-GR",3)
 #endif
             CASE DEFAULT
                err = TRIM(list%ping("Preconditioner",lPtr))

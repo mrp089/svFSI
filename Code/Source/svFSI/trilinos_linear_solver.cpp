@@ -470,7 +470,7 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
 
   //call solver code which assembles K and F for shared processors
   bool flagFassem = false;
-  trilinos_solve_direct_(x, dirW, resNorm, initNorm, numIters,
+  trilinos_solve_(x, dirW, resNorm, initNorm, numIters,
           solverTime, dB, converged, lsType,
           relTol, maxIters, kspace, precondType, flagFassem);
 
@@ -820,6 +820,21 @@ void setPreconditioner(int precondType, AztecOO &Solver)
   }
   else if (precondType == TRILINOS_ML_PRECONDITIONER)
     setMLPrec(Solver);
+  else if (precondType == TRILINOS_GR_PRECONDITIONER)
+    {
+  	  checkDiagonalIsZero();
+
+  //	  Solver.SetAztecOption(AZ_precond, AZ_Jacobi);
+
+  	  Solver.SetAztecOption(AZ_precond, AZ_dom_decomp);
+  	  Solver.SetAztecOption(AZ_subdomain_solve, AZ_ilut);
+
+  	  Solver.SetAztecOption(AZ_overlap,1);
+  //	  Solver.SetAztecOption(AZ_graph_fill,4);
+  	  Solver.SetAztecParam(AZ_ilut_fill, 20); //10
+  	  Solver.SetAztecParam(AZ_drop, 1e-12); //1.0e-12
+  	  Solver.SetPrecMatrix(Trilinos::K);
+    }
   else
   {
     std::cout << "ERROR: Preconditioner Type is undefined" << std::endl;
