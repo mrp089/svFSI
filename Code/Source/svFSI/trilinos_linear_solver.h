@@ -101,6 +101,7 @@
 #define TRILINOS_ICT_PRECONDITIONER 707
 #define TRILINOS_ML_PRECONDITIONER 708
 #define TRILINOS_GR_PRECONDITIONER 710
+#define TRILINOS_DIRECT 711
 
 // Initialize all Epetra types we need separate from Fortran
 struct Trilinos
