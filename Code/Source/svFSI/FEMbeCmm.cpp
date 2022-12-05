@@ -44,11 +44,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		std::terminate();
 
 	// couple wss
-	const bool coup_wss = false;
+	const bool coup_wss = true;
 
 	// set example
 	enum Example { none, aneurysm, tortuosity, stenosis };
-	Example example = stenosis;
+	Example example = aneurysm;
 	const bool example_asym = false;
 	
 	double KsKi = 0.35;
@@ -165,7 +165,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	double CS = 0.5*CB * 1.0;							// such that (1-exp( -C^2)) = 0.0 for lt = 1/(1+CB/CS)^(1/3) = 0.7 and (1-exp(-C^2)) = 0.75 for lt = 2.0
 
 	// time factor [0, 1]
-	const double f_time = (sgr - pretime) / (endtime - pretime);
+	double f_time = (sgr - pretime) / (endtime - pretime);
 
 	const double EPS  = 1.0+(1.0-1.0)*f_time;
 
@@ -216,6 +216,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
 	if (example == aneurysm and mode == gr) {
+		// apply transfer function to advance time more equally
+		const double t_fac = 2.0;
+		f_time = tanh(t_fac * f_time) / tanh(t_fac);
+
 		// no fiber reorientation
 		aexp = 0.0;
 
@@ -223,33 +227,37 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double z_om = lo/2.0;
 
 		double theta_od;
-		double phi_e_hm;
-		int vz;
+//		double phi_e_hm = 0.65;
+		double phi_e_hm = 0.75;
+		int vza;
+		int vzc;
 		double z_od;
 		if (example_asym)
 		{
-			z_od = lo/3.0/mult;
-			vz = 5;
-			phi_e_hm = 0.65;
-
 			// 8d
-			theta_od = 3.0;
+//			z_od = lo/3.0/mult;
+//			vz = 5;
+//			theta_od = 3.0;
+
+			z_od = lo/4.0/mult;
+			theta_od = 0.55;
+			vza = 2;
+			vzc = 6;
 		}
 		else
 		{
 			// 8b, 8c
 			z_od = lo/4.0/mult;
-			vz = 2;
-			phi_e_hm = 0.65;
+			vza = 2;
 		}
 
 		// axial factor (0, 1]
-		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vz));
+		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vza));
 
 		// azimuth factor (0, 1]
 		double f_cir = 1.0;
 		if (example_asym)
-			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
+			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI * theta_od)), vzc));
 
 		mu   *= 1.0 - f_time * f_axi * f_cir * phi_e_hm;
 		KsKi *= 1.0 - f_time * f_axi;
@@ -289,22 +297,22 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	if (example == stenosis and mode == gr)
 	{
 		// location (= middle)
-		const double z_om = lo/4.0;
+		const double z_om = lo/2.0;
 
 		const double phi_e_hm = 2.0;
-		const int vz = 2;
+		const int vza = 2;
 		const double z_od = lo/16.0/mult;
 
 		// axial factor (0, 1]
-		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vz));
+		const double f_axi = exp(-pow(abs((X.z - z_om) / z_od), vza));
 
 		// azimuth factor (0, 1]
 		double f_cir = 1.0;
 		if (example_asym)
 		{
-			double theta_od = 2.0;
-			const int vz = 4;
-			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI / theta_od)), vz));
+			double theta_od = 0.75;
+			const int vzc = 6;
+			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI * theta_od)), vzc));
 		}
 
 		mu   *= 1.0 + f_time * f_axi * f_cir * phi_e_hm;
