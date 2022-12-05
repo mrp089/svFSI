@@ -831,15 +831,16 @@ void setPreconditioner(int precondType, AztecOO &Solver)
 
   //	  Solver.SetAztecOption(AZ_precond, AZ_Jacobi);
 
-//  	  Solver.SetAztecOption(AZ_precond, AZ_dom_decomp);
+  	  Solver.SetAztecOption(AZ_precond, AZ_dom_decomp);
   	  Solver.SetAztecOption(AZ_subdomain_solve, AZ_ilut);
 
-  	  Solver.SetAztecOption(AZ_overlap,1);
+//  	  Solver.SetAztecOption(AZ_overlap,1);
 //  	  Solver.SetAztecOption(AZ_reorder,0);
 //  	  Solver.SetAztecOption(AZ_symmetric,0);
-//  	  Solver.SetAztecOption(AZ_graph_fill,4);
-  	  Solver.SetAztecParam(AZ_ilut_fill, 20); //10
-  	  Solver.SetAztecParam(AZ_drop, 1e-5); //1.0e-12
+  	  // use k=1
+  	  Solver.SetAztecOption(AZ_graph_fill,4);
+  	  Solver.SetAztecParam(AZ_ilut_fill,20); //10
+  	  Solver.SetAztecParam(AZ_drop, 1e-12); //1.0e-12
   	  Solver.SetPrecMatrix(Trilinos::K);
     }
   else
@@ -970,7 +971,7 @@ void checkDiagonalIsZero()
   for (int i = 0; i < diagonal.MyLength(); ++i)
   {
     //if diagonal is 0 change it to be 1
-    if (diagonal[i] == 0.0)
+    if (abs(diagonal[i]) < 1.0e-12)
     {
       diagonal[i] = 1.0;
       isZeroDiag = true;
