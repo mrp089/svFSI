@@ -91,7 +91,7 @@
      2      lEq%FSILS%RI%fNorm, lEq%FSILS%RI%iNorm, lEq%FSILS%RI%itr,
      3      lEq%FSILS%RI%callD, lEq%FSILS%RI%dB, lEq%FSILS%RI%suc,
      4      lEq%ls%LS_type, lEq%FSILS%RI%reltol, lEq%FSILS%RI%mItr,
-     5      lEq%FSILS%RI%sD, lEq%ls%PREC_Type)
+     5      lEq%FSILS%RI%sD, lEq%ls%PREC_Type, x)
 
       ELSE
 #endif

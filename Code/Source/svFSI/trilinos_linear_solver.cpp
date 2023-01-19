@@ -155,7 +155,21 @@ void trilinos_lhs_create_(unsigned &numGlobalNodes, unsigned &numLocalNodes,
         unsigned &numGhostAndLocalNodes, unsigned &nnz, const int *ltgSorted,
         const int *ltgUnsorted, const int *rowPtr, const int *colInd, int &Dof)
 {
-  int indexBase = 1; //0 based indexing for C/C++ / 1 for Fortran
+  int indexBase = 0; //0 based indexing for C/C++ / 1 for Fortran
+
+  std::vector<int> ltgSorted_pp;
+  ltgSorted_pp.clear();
+  ltgSorted_pp.reserve(numGhostAndLocalNodes);
+  for (unsigned i = 0; i < numGhostAndLocalNodes; ++i)
+    ltgSorted_pp.emplace_back(ltgSorted[i] - 1);
+  
+  std::vector<int> ltgUnsorted_pp;
+  ltgUnsorted_pp.clear();
+  ltgUnsorted_pp.reserve(numGhostAndLocalNodes);
+  for (unsigned i = 0; i < numGhostAndLocalNodes; ++i)
+    ltgUnsorted_pp.emplace_back(ltgUnsorted[i] - 1);
+
+
   dof = Dof; //constant size dof blocks
   ghostAndLocalNodes = numGhostAndLocalNodes;
   localNodes = numLocalNodes;
@@ -185,7 +199,7 @@ void trilinos_lhs_create_(unsigned &numGlobalNodes, unsigned &numLocalNodes,
   if (new_mapping_pattern) {
     for (unsigned i = 0; i < numLocalNodes; ++i) {
       //any nodes following are ghost nodes so that subset
-      localToGlobalSorted.emplace_back(ltgSorted[i]);
+      localToGlobalSorted.emplace_back(ltgSorted[i] - 1);
     }
   }
 
@@ -195,12 +209,14 @@ void trilinos_lhs_create_(unsigned &numGlobalNodes, unsigned &numLocalNodes,
   // the calling processor
   Trilinos::blockMap = new Epetra_BlockMap(numGlobalNodes, numLocalNodes,
                        &localToGlobalSorted[0], dof, indexBase, comm);
+  // Trilinos::blockMap->Print(std::cout);
 
   //Create blockmap which includes the ghost nodes to be imported into the
   //solution vector at the end
   int inc_ghost = -1; // since including ghost nodes sum will not equal total
-  Epetra_BlockMap ghostMap(inc_ghost, numGhostAndLocalNodes,  ltgSorted, dof,
-          indexBase, comm);
+  // Epetra_BlockMap ghostMap(inc_ghost, numGhostAndLocalNodes, ltgSorted - 1, dof, 0, comm);
+  Epetra_BlockMap ghostMap(inc_ghost, numGhostAndLocalNodes, &ltgSorted_pp[0], dof, indexBase, comm);
+  // ghostMap.Print(std::cout);
 
   // Calculate nnzPerRow to pass into graph constructor
   if (new_mapping_pattern) {
@@ -220,7 +236,7 @@ void trilinos_lhs_create_(unsigned &numGlobalNodes, unsigned &numLocalNodes,
     globalColInd.clear(); // destroy
     for (unsigned i = 0; i < nnz; ++i) {
       // Convert to global indexing subtract 1 for fortran vs C array indexing
-      globalColInd.emplace_back(ltgUnsorted[colInd[i] - 1]);
+      globalColInd.emplace_back(ltgUnsorted[colInd[i] - 1] - 1);
     }
   } //if
 
@@ -233,7 +249,8 @@ void trilinos_lhs_create_(unsigned &numGlobalNodes, unsigned &numLocalNodes,
     int error = 0;
     int num_rows_inserting = 1; //number of rows-inserting one row at a time
     error = Trilinos::K_graph->InsertGlobalIndices(num_rows_inserting,
-            &ltgUnsorted[i], numEntries, &globalColInd[nnzCount]);
+            &ltgUnsorted_pp[i], numEntries, &globalColInd[nnzCount]);
+    // std::cout<<num_rows_inserting<<" "<<ltgUnsorted_pp[i]<<" "<<numEntries<<" "<<globalColInd[nnzCount]<<std::endl;
 
     //colInd is indexed by nnz per rows processed so far
     if (error != 0)
@@ -247,7 +264,9 @@ void trilinos_lhs_create_(unsigned &numGlobalNodes, unsigned &numLocalNodes,
     nnzCount += numEntries;
     //store into global vector
     if (new_mapping_pattern)
-      localToGlobalUnsorted.emplace_back(ltgUnsorted[i]);
+    {
+      localToGlobalUnsorted.emplace_back(ltgUnsorted[i] - 1);
+    }
   } // for
 
   //by end of iterations nnzCount should equal nnz-otherwise there is an error
@@ -263,6 +282,7 @@ void trilinos_lhs_create_(unsigned &numGlobalNodes, unsigned &numLocalNodes,
     std::cout << "ERROR: Calling Fill Complete on Graph" << std::endl;
     exit(1);
   }
+  // Trilinos::K_graph->Print(std::cout);
 
   //Trilinos::K_graph->OptimizeStorage(); //TODO: that causes it to fail
 
@@ -283,7 +303,8 @@ void trilinos_lhs_create_(unsigned &numGlobalNodes, unsigned &numLocalNodes,
   //need to give v a map-same as F
   if (new_mapping_pattern)
     for (unsigned i = numLocalNodes; i < numGhostAndLocalNodes; ++i)
-      localToGlobalSorted.emplace_back(ltgSorted[i]);
+      localToGlobalSorted.emplace_back(ltgSorted[i] - 1);
+  // std::terminate();
 } // trilinos_lhs_create_
 
 // ----------------------------------------------------------------------------
@@ -356,6 +377,7 @@ void trilinos_doassem_(int &numNodesPerElement, const int *eqN,
           //taking transpose of block so flip i & j
           values[i*dof + j]
               = lK[b*dof*dof*numNodesPerElement + a*dof*dof + j*dof + i];
+          std::cout<<a<<" "<<b<<" "<<i<<" "<<j<<" "<<values[i*dof + j]<<std::endl;
         }
       }
 
@@ -405,8 +427,10 @@ void trilinos_doassem_(int &numNodesPerElement, const int *eqN,
 void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
         const double *dirW, double &resNorm, double &initNorm, int &numIters,
         double &solverTime, double &dB, bool &converged, int &lsType,
-        double &relTol, int &maxIters, int &kspace, int &precondType)
+        double &relTol, int &maxIters, int &kspace, int &precondType, const double *coord)
 {
+  // Trilinos::blockMap->Print(std::cout);
+  
   int nnzCount = 0; //cumulate count of block nnz per rows
   int count = 0;
   int numValuesPerID = dof; //dof values per id pointer to dof
@@ -417,6 +441,7 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
   {
     int numEntries = nnzPerRow[i]; //block per of entries per row
     //copy global stiffness values
+    // std::cout<<localToGlobalUnsorted[i]<<" "<<numEntries<<" "<<globalColInd[nnzCount]<<std::endl;
     int error = Trilinos::K->BeginReplaceGlobalValues(localToGlobalUnsorted[i],
             numEntries, &globalColInd[nnzCount]);
 
@@ -446,7 +471,10 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
       for (int l = 0; l < dof; ++l) //loop over dof for bool to contruct
       {
         for (int m = 0; m < dof; ++m)
+        {
           values[l*dof + m] = Val[count*dof*dof + m*dof + l]; //transpose it
+          // std::cout<<i<<" "<<j<<" "<<l<<" "<<m<<" "<<values[l*dof + m]<<std::endl;
+        }
       }
       //submit square dof*dof blocks
       error = Trilinos::K->SubmitBlockEntry(&values[0], dof, dof, dof);
@@ -468,6 +496,7 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
     nnzCount += numEntries;
   }
 
+  // Trilinos::F->Print(std::cout);
   //call solver code which assembles K and F for shared processors
   bool flagFassem = false;
   if (precondType == TRILINOS_DIRECT)
@@ -477,8 +506,9 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
   else
 	  trilinos_solve_(x, dirW, resNorm, initNorm, numIters,
 			  solverTime, dB, converged, lsType,
-			  relTol, maxIters, kspace, precondType, flagFassem);
+			  relTol, maxIters, kspace, precondType, flagFassem, coord);
 
+  // std::terminate();
 } // trilinos_global_solve_
 
 // ----------------------------------------------------------------------------
@@ -505,7 +535,7 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
 void trilinos_solve_(double *x, const double *dirW, double &resNorm,
         double &initNorm, int &numIters, double &solverTime, double &dB,
         bool &converged, int &lsType, double &relTol, int &maxIters,
-        int &kspace, int &precondType, bool &isFassem)
+        int &kspace, int &precondType, bool &isFassem, const double *coord)
 {
   bool flagFassem = isFassem;
 
@@ -557,7 +587,7 @@ void trilinos_solve_(double *x, const double *dirW, double &resNorm,
   Solver.SetAztecOption(AZ_output, AZ_none);
 #endif
 
-  setPreconditioner(precondType, Solver);
+  setPreconditioner(precondType, Solver, coord);
 
   // Set convergence type as relative ||r|| <= relTol||b||
   Solver.SetAztecOption(AZ_conv, AZ_rhs);
@@ -623,6 +653,7 @@ void trilinos_solve_(double *x, const double *dirW, double &resNorm,
      std::cout << "ERROR: Extracting copy of solution vector!" << std::endl;
      exit(1);
   }
+  // EpetraExt::RowMatrixToMatlabFile("K.mat", *((Epetra_RowMatrix *) Trilinos::K));
   //set to 0 for the next time iteration
   Trilinos::K->PutScalar(0.0);
   Trilinos::F->PutScalar(0.0);
@@ -764,6 +795,9 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
      std::cout << "ERROR: Extracting copy of solution vector!" << std::endl;
      exit(1);
   }
+  // EpetraExt::RowMatrixToMatlabFile("K_direct.mat", *((Epetra_RowMatrix *) Trilinos::K));
+  // Trilinos::ghostX->Print(std::cout);
+
   //set to 0 for the next time iteration
   Trilinos::K->PutScalar(0.0);
   Trilinos::F->PutScalar(0.0);
@@ -775,7 +809,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 } // trilinos_solve_direct_
 
 // ----------------------------------------------------------------------------
-void setPreconditioner(int precondType, AztecOO &Solver)
+void setPreconditioner(int precondType, AztecOO &Solver, const double *coord)
 {
   //initialize reordering for ILU/ILUT preconditioners
   Solver.SetAztecOption(AZ_reorder, 1);
@@ -824,7 +858,10 @@ void setPreconditioner(int precondType, AztecOO &Solver)
     setIFPACKPrec(Solver); //add in parameter for string for different types
   }
   else if (precondType == TRILINOS_ML_PRECONDITIONER)
-    setMLPrec(Solver);
+  {
+	checkDiagonalIsZero();
+    setMLPrec(Solver, coord);
+  }
   else if (precondType == TRILINOS_GR_PRECONDITIONER)
     {
   	  checkDiagonalIsZero();
@@ -834,14 +871,18 @@ void setPreconditioner(int precondType, AztecOO &Solver)
   	  Solver.SetAztecOption(AZ_precond, AZ_dom_decomp);
   	  Solver.SetAztecOption(AZ_subdomain_solve, AZ_ilut);
 
-//  	  Solver.SetAztecOption(AZ_overlap,1);
+ 	  // Solver.SetAztecOption(AZ_overlap,AZ_diag);
 //  	  Solver.SetAztecOption(AZ_reorder,0);
 //  	  Solver.SetAztecOption(AZ_symmetric,0);
   	  // use k=1
-  	  Solver.SetAztecOption(AZ_graph_fill,4);
-  	  Solver.SetAztecParam(AZ_ilut_fill,20); //10
-  	  Solver.SetAztecParam(AZ_drop, 1e-12); //1.0e-12
+  	  Solver.SetAztecOption(AZ_graph_fill,1);
+  	  Solver.SetAztecParam(AZ_ilut_fill,2000); //10
+  	  Solver.SetAztecParam(AZ_drop, 0); //1.0e-12
   	  Solver.SetPrecMatrix(Trilinos::K);
+
+  	  // Solver.SetAztecOption(AZ_scaling,AZ_row_sum);
+      // Solver.SetAztecOption(AZ_output,AZ_all);
+  	  // EpetraExt::RowMatrixToMatlabFile("K.mat", *((Epetra_RowMatrix *) Trilinos::K));
     }
   else
   {
@@ -855,58 +896,100 @@ void setPreconditioner(int precondType, AztecOO &Solver)
  * Tune parameters for htis and IFPACK
  * Ref: https://trilinos.org/oldsite/packages/ml/mlguide5.pdf
  */
-void setMLPrec(AztecOO &Solver)
+void setMLPrec(AztecOO &Solver, const double *coord)
 {
+  // solve squared system
+//  Epetra_FECrsMatrix B(Copy, *(Trilinos::K_graph));
+//  EpetraExt::MatrixMatrix::Multiply(*((Epetra_CrsMatrix *) Trilinos::K), true, *((Epetra_CrsMatrix *) Trilinos::K), false, B);
+//  Trilinos::F->Multiply();
+
   //break up into initializer
   Teuchos::ParameterList MLList;
   int *options = new int[AZ_OPTIONS_SIZE];
   double *params = new double[AZ_PARAMS_SIZE];
-  ML_Epetra::SetDefaults("SA",MLList, options, params);
-  //MLList.set("XML input file", "/home/augustin/programs/MUPFES/trunk/examples/conf-files/ml_ParameterList_sGS.xml");
 
+  // set defaults
+  ML_Epetra::SetDefaults("SA",MLList, options, params);
+
+  // read xml file
+  MLList.set("read XML", true);
+  MLList.set("XML input file", "in_linear/direct.xml");
+
+  // set nullspace
+//  MLList.set("null space: type", "elasticity from coordinates");
+  std::vector<std::vector<double>>  coord_i(dof, std::vector<double> (ghostAndLocalNodes, 0));
+  for (int i = 0; i < dof; ++i)
+  {
+	  // get coordinate components
+	  for (int j = 0; j < ghostAndLocalNodes; ++j)
+		  coord_i[i][j] = coord[j * dof + i];
+
+	  // get parameter name
+	  std::string name;
+	  name += char(120 + i);
+	  name += "-coordinates";
+
+//	  MLList.set(name, &coord_i[i][0]);
+  }
+
+//  EpetraExt::RowMatrixToMatlabFile("K.mat", *((Epetra_RowMatrix *) Trilinos::K));
+//  EpetraExt::MultiVectorToMatlabFile("RHS.mat", *((Epetra_MultiVector *) Trilinos::F));
+//  std::terminate();
   // ML general options
   // output level, 0 being silent and 10 verbose
-  bool verbose = false;
-  if (verbose)
-    MLList.set("ML output", 10);
-  else
-    MLList.set("ML output", 0);
+  // bool verbose = false;
+  // if (verbose)
+    // MLList.set("ML output", 10);
+  // else
+  //   MLList.set("ML output", 0);
+
+  // works slowly by solving the problem directly with KLU
+  // ML_Epetra::SetDefaults("SA",MLList, options, params);
+  // MLList.set("max levels",1);
+  
+  // ML_Epetra::SetDefaults("NSSA",MLList, options, params);
+  // MLList.set("max levels",2);
+  // MLList.set("coarse: type","Amesos-KLU");
+  // MLList.set("smoother: pre or post", "both");
 
   // ML Cycle options
   // maximum number of levels possible
-  MLList.set("max levels",4);
+  // MLList.set("max levels",2);
   //If set to increasing, level 0 will correspond to the finest level.
   //If set to decreasing,max levels - 1 will correspond to the finest level.
   //Default: increasing.
-  MLList.set("increasing or decreasing","increasing");
+  // MLList.set("increasing or decreasing","increasing");
 
   // Aggregation & prolongator parameters
   // coarsening options:  Uncoupled, MIS, Uncoupled-MIS (uncoupled on the finer grids, then switch to MIS)
   //MLList.set("aggregation: type", "Uncoupled");
-  MLList.set("aggregation: type", "MIS");
-  MLList.set("aggregation: threshold", 0.0);
+  // MLList.set("aggregation: type", "MIS");
+  // MLList.set("aggregation: threshold", 0.0);
 
   // Smoother parameters
   //common smoother options: Chebyshev, Gauss-Seidel, symmetric Gauss-Seidel, Jacobi, ILU, IC
-  MLList.set("smoother: ifpack type","ILU");
-  MLList.set("smoother: ifpack overlap",1);
-  MLList.sublist("smoother: ifpack list").set("fact: level-of-fill",1);
-  MLList.sublist("smoother: ifpack list").set("schwarz: reordering type","rcm");
+  // MLList.set("smoother: ifpack type","Chebyshev");
+  // MLList.set("smoother: ifpack overlap",1);
+  // MLList.sublist("smoother: ifpack list").set("fact: level-of-fill",1);
+  // MLList.sublist("smoother: ifpack list").set("schwarz: reordering type","rcm");
   // use both pre and post smoothing
-  MLList.set("smoother: pre or post", "both");
-  MLList.set("subsmoother: type", "symmetric Gauss-Seidel");
+  // MLList.set("smoother: pre or post", "both");
+  // MLList.set("smoother: sweeps", 12);
+  // MLList.set("smoother: type", "Amesos-KLU");
+  // MLList.set("subsmoother: type", "Chebyshev");
 
   //Coarse grid parameters
-  MLList.set("coarse: max size", 15);
+  // MLList.set("coarse: max size", 15);
   // Coarse solver Default: AmesosKLU.
-  MLList.set("coarse: type","symmetric Gauss-Seidel");
+  // MLList.set("coarse: type","Amesos-KLU");
+  // MLList.set("coarse: sweeps", 1);
 
   // Load balancing options
-  MLList.set("repartition: enable",1);
-  MLList.set("repartition: max min ratio",1.3);
-  MLList.set("repartition: min per proc",500);
-  MLList.set("repartition: partitioner","Zoltan");
-  MLList.set("repartition: Zoltan dimensions",2);
+  // MLList.set("repartition: enable",1);
+  // MLList.set("repartition: max min ratio",1.3);
+  // MLList.set("repartition: min per proc",500);
+  // MLList.set("repartition: partitioner","Zoltan");
+  // MLList.set("repartition: Zoltan dimensions",2);
 
   // create the preconditioner object based on options in MLList and compute hierarchy
   if (MLPrec == NULL)
@@ -919,6 +1002,8 @@ void setMLPrec(AztecOO &Solver)
     MLPrec->ReComputePreconditioner();
   }
   Solver.SetPrecOperator(MLPrec);
+//  Solver.SetAztecOption(AZ_conv,AZ_Anorm);
+//  Solver.SetAztecOption(AZ_output,AZ_all);
 
   //solver to separte function only recompute at separate time iter
   timecount += 1;
@@ -1029,7 +1114,7 @@ void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, E
 			for (int k = 0; k < rowDim; ++k)
 			{
 				// global row index
-				int row = (localToGlobalUnsorted[i] - 1) * dof + k;
+				int row = (localToGlobalUnsorted[i]) * dof + k;
 
 				//check for DBCs
 				if (dirW[row] < 0.5)
@@ -1041,7 +1126,7 @@ void applyDirichlet(const double *dirW, Epetra_CrsMatrix &K, Epetra_Vector &F, E
 				for (int l = 0; l < colDims[j]; ++l)
 				{
 					// global col index
-					col[0] = (blockIndices[j] - 1) * dof + l;
+					col[0] = (blockIndices[j]) * dof + l;
 
 					// if DBC: one on diagonal, zero in the rest of the row
 					if (is_dbc)
@@ -1085,17 +1170,17 @@ void constructJacobiScaling(const double *dirW, Epetra_Vector &diagonal)
     }
   }
 
-  //Extract diagonal of K
-  Epetra_Vector Kdiag(*Trilinos::blockMap);
-  Trilinos::K->ExtractDiagonalCopy(Kdiag);
-  for (int i = 0; i < Kdiag.MyLength(); ++i)
-  {
-    if (Kdiag[i] == 0.0) Kdiag[i] = 1.0;
-    Kdiag[i] = 1 / sqrt(abs(Kdiag[i])); //Jacobi scaling 1 / sqrt|aii|
-  }
-
-  //multiply the two vectors together
-  diagonal.Multiply(1.0, diagonal, Kdiag, 0.0);
+//  //Extract diagonal of K
+//  Epetra_Vector Kdiag(*Trilinos::blockMap);
+//  Trilinos::K->ExtractDiagonalCopy(Kdiag);
+//  for (int i = 0; i < Kdiag.MyLength(); ++i)
+//  {
+//    if (Kdiag[i] == 0.0) Kdiag[i] = 1.0;
+//    Kdiag[i] = 1 / sqrt(abs(Kdiag[i])); //Jacobi scaling 1 / sqrt|aii|
+//  }
+//
+//  //multiply the two vectors together
+//  diagonal.Multiply(1.0, diagonal, Kdiag, 0.0);
 
   //Multiply K and Fon the left by diagonal
   //Let diag = W, solving W*K*W*y = W*F, where X = W*y

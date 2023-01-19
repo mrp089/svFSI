@@ -44,12 +44,12 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		std::terminate();
 
 	// couple wss
-	const bool coup_wss = true;
+	const bool coup_wss = false;
 
 	// set example
 	enum Example { none, aneurysm, tortuosity, stenosis };
 	Example example = aneurysm;
-	const bool example_asym = false;
+	const bool example_asym = true;
 	
 	double KsKi = 0.35;
 //	double KsKi = 0.0;
@@ -217,7 +217,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
 	if (example == aneurysm and mode == gr) {
 		// apply transfer function to advance time more equally
-		const double t_fac = 2.0;
+		const double t_fac = 3.0;
 		f_time = tanh(t_fac * f_time) / tanh(t_fac);
 
 		// no fiber reorientation

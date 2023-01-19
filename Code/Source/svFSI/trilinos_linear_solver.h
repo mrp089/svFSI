@@ -59,6 +59,8 @@
 #include "Epetra_SerialComm.h"
 
 #include "EpetraExt_RowMatrixOut.h"
+#include "EpetraExt_MultiVectorOut.h"
+#include "EpetraExt_MatrixMatrix.h"
 
 // AztecOO includes
 #include "AztecOO.h"
@@ -217,12 +219,12 @@ public:
           double *x, const double *dirW, double &resNorm, double &initNorm,
           int &numIters, double &solverTime, double &dB, bool &converged,
           int &lsType, double &relTol, int &maxIters, int &kspace,
-          int &precondType);
+          int &precondType, const double *coord);
 
   void trilinos_solve_(double *x, const double *dirW, double &resNorm,
           double &initNorm, int &numIters, double &solverTime,
           double &dB, bool &converged, int &lsType, double &relTol,
-          int &maxIters, int &kspace, int &precondType, bool &isFassem);
+          int &maxIters, int &kspace, int &precondType, bool &isFassem, const double *coord);
 
   void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
           double &initNorm, int &numIters, double &solverTime,
@@ -236,9 +238,11 @@ public:
 #endif
 
 // --- Define functions to only be called in C++ ------------------------------
-void setPreconditioner(int precondType, AztecOO &Solver);
+void setPreconditioner(int precondType, AztecOO &Solver, const double *coord);
 
-void setMLPrec(AztecOO &Solver);
+void setMLPrec(AztecOO &Solver, const double *coord);
+
+void setMueLuPrec(AztecOO &Solver, const double *coord);
 
 void setIFPACKPrec(AztecOO &Solver);
 

@@ -1476,3 +1476,16 @@
 
       END SUBROUTINE PPBIN2VTK
 !####################################################################
+!     post-processing function for internal g&r variables
+      SUBROUTINE GRPOST(lM, nFn, res, lD, iEq)
+      USE COMMOD
+      USE ALLFUN
+      USE MATFUN
+      IMPLICIT NONE
+
+      INTEGER(KIND=IKIND), INTENT(IN) :: iEq, nFn
+      TYPE(mshType), INTENT(INOUT) :: lM
+      REAL(KIND=RKIND), INTENT(INOUT) :: res(nFn*nsd,lM%nNo)
+      REAL(KIND=RKIND), INTENT(IN) :: lD(tDof,tnNo)
+
+      END SUBROUTINE GRPOST
