@@ -419,6 +419,8 @@
          REAL(KIND=RKIND) dB
 !        Calling duration              (OUT)
          REAL(KIND=RKIND) callD
+!        XML configuration file for ML preconditioner
+         CHARACTER(LEN=stdL) xml
       END TYPE lsType
 
 !     Contact model type

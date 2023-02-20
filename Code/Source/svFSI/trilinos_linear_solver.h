@@ -69,6 +69,8 @@
 
 // Amesos includes
 #include "Amesos.h"
+#include "Amesos_Mumps.h"
+#include "Amesos_Utils.h"
 
 
 // ML includes
@@ -104,6 +106,7 @@
 #define TRILINOS_ML_PRECONDITIONER 708
 #define TRILINOS_GR_PRECONDITIONER 710
 #define TRILINOS_DIRECT 711
+#define TRILINOS_XML_PRECONDITIONER 712
 
 // Initialize all Epetra types we need separate from Fortran
 struct Trilinos
@@ -219,12 +222,12 @@ public:
           double *x, const double *dirW, double &resNorm, double &initNorm,
           int &numIters, double &solverTime, double &dB, bool &converged,
           int &lsType, double &relTol, int &maxIters, int &kspace,
-          int &precondType, const double *coord);
+          int &precondType, char* xml, const double *coord, int &i_time, int &i_nonlin);
 
   void trilinos_solve_(double *x, const double *dirW, double &resNorm,
           double &initNorm, int &numIters, double &solverTime,
           double &dB, bool &converged, int &lsType, double &relTol,
-          int &maxIters, int &kspace, int &precondType, bool &isFassem, const double *coord);
+          int &maxIters, int &kspace, int &precondType, char* xml, bool &isFassem, const double *coord, int &i_time, int &i_nonlin);
 
   void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
           double &initNorm, int &numIters, double &solverTime,
@@ -238,9 +241,11 @@ public:
 #endif
 
 // --- Define functions to only be called in C++ ------------------------------
-void setPreconditioner(int precondType, AztecOO &Solver, const double *coord);
+void setPreconditioner(int precondType, AztecOO &Solver, char* xml, const double *coord, int &i_time, int &i_nonlin);
 
-void setMLPrec(AztecOO &Solver, const double *coord);
+void setMLPrec(AztecOO &Solver, const double *coord, int &i_time, int &i_nonlin);
+
+void setML_XML_Prec(AztecOO &Solver, char* xml_file);
 
 void setMueLuPrec(AztecOO &Solver, const double *coord);
 

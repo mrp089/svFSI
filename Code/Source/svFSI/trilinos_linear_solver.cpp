@@ -427,7 +427,7 @@ void trilinos_doassem_(int &numNodesPerElement, const int *eqN,
 void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
         const double *dirW, double &resNorm, double &initNorm, int &numIters,
         double &solverTime, double &dB, bool &converged, int &lsType,
-        double &relTol, int &maxIters, int &kspace, int &precondType, const double *coord)
+        double &relTol, int &maxIters, int &kspace, int &precondType, char* xml, const double *coord, int &i_time, int &i_nonlin)
 {
   // Trilinos::blockMap->Print(std::cout);
   
@@ -506,7 +506,7 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
   else
 	  trilinos_solve_(x, dirW, resNorm, initNorm, numIters,
 			  solverTime, dB, converged, lsType,
-			  relTol, maxIters, kspace, precondType, flagFassem, coord);
+			  relTol, maxIters, kspace, precondType, xml, flagFassem, coord, i_time, i_nonlin);
 
   // std::terminate();
 } // trilinos_global_solve_
@@ -535,7 +535,7 @@ void trilinos_global_solve_(const double *Val, const double *RHS, double *x,
 void trilinos_solve_(double *x, const double *dirW, double &resNorm,
         double &initNorm, int &numIters, double &solverTime, double &dB,
         bool &converged, int &lsType, double &relTol, int &maxIters,
-        int &kspace, int &precondType, bool &isFassem, const double *coord)
+        int &kspace, int &precondType, char* xml, bool &isFassem, const double *coord, int &i_time, int &i_nonlin)
 {
   bool flagFassem = isFassem;
 
@@ -579,6 +579,124 @@ void trilinos_solve_(double *x, const double *dirW, double &resNorm,
 
   //Define linear problem if v is 0 does standard matvec product with K
   Epetra_LinearProblem Problem(&K_bdry, Trilinos::X, Trilinos::F);
+
+  const bool squared = false;
+  if (squared)
+  {
+	  // create squared diagonal
+	  Epetra_MpiComm comm(MPI_COMM_WORLD);
+	  Epetra_Map* map = new Epetra_Map(Trilinos::K->NumGlobalBlockRows() * dof, 0, comm);
+	  Epetra_CrsMatrix K(Copy, *map, 0);
+
+	  // convert Epetra_VbrMatrix to Epetra_CrsMatrix
+	  int *col = new int[1];
+	  double val;
+	  for (int i = 0; i < ghostAndLocalNodes; ++i)
+	  {
+		  int numEntries = nnzPerRow[i]; //block per of entries per row
+		  //copy global stiffness values
+		  int rowDim, numBlockEntries;
+		  int *blockIndices = new int[numEntries];
+		  int *colDims = new int[numEntries];
+		  Trilinos::K->BeginExtractGlobalBlockRowCopy(localToGlobalUnsorted[i], numEntries, rowDim, numBlockEntries, blockIndices, colDims);
+
+		  // loop blocks
+		  for (int j = 0; j < numEntries; ++j)
+		  {
+			  std::vector<double> values(rowDim*colDims[j]);
+			  int sizeofValues = rowDim*colDims[j];
+			  int LDA = colDims[j];
+			  Trilinos::K->ExtractEntryCopy(sizeofValues, &values[0], LDA, false);
+
+			  // loop row
+			  for (int k = 0; k < rowDim; ++k)
+			  {
+				  // global row index
+				  int row = (localToGlobalUnsorted[i]) * dof + k;
+
+				  // loop col
+				  for (int l = 0; l < colDims[j]; ++l)
+				  {
+					  // global col index
+					  col[0] = (blockIndices[j]) * dof + l;
+					  val = values[l*colDims[j] + k];
+					  K.InsertGlobalValues(row, 1, &val, col);
+				  }
+			  }
+		  }
+	  }
+	  K.FillComplete();
+
+//	  // get squared diagonal
+//	  Epetra_CrsMatrix diag_mat(Copy, *map, 0);
+//	  for (int i = 0; i < ghostAndLocalNodes; ++i)
+//		  for (int k = 0; k < dof; ++k)
+//		  {
+//			  int row = (localToGlobalUnsorted[i]) * dof + k;
+//
+//			  // extract row
+//			  int numEntries = 0;
+//			  double *values = 0;
+//			  int *indices = 0;
+//			  K.ExtractMyRowView(row, numEntries, values, indices);
+//
+//			  // multiply row with itself and sum up values
+//			  val = 0.0;
+//			  for (int j = 0; j < numEntries; ++j)
+//				  val += values[j] * values[j];
+//
+//			  // instert into diagonal
+//			  col[0] = row;
+//			  diag_mat.InsertGlobalValues(row, 1, &val, col);
+//		  }
+//	  diag_mat.FillComplete();
+	  //  	  diag_mat.Print(std::cout);
+	  //  	  std::terminate();
+
+	  // jacobi
+	  //  	  Solver.SetAztecOption(AZ_precond, AZ_Jacobi);
+	  //      Solver.SetAztecOption(AZ_poly_ord, 1);
+	  //      Solver.SetPrecMatrix(&diag_mat);
+
+
+	  Epetra_Vector F(*map);
+	  Epetra_Vector X(*map);
+	  F.PutScalar(0.0);
+	  for (int i=0; i<Trilinos::K->NumGlobalBlockRows() * dof; ++i)
+	  {
+		  val = Trilinos::F->operator[](0)[i];
+		  F.SumIntoGlobalValue(i, 0, val);
+		  X.SumIntoGlobalValue(i, 0, val);
+	  }
+
+	  //	  Solver.SetAztecOption(AZ_precond, AZ_none);
+
+	  Epetra_CrsMatrix A(Copy, *map, 0);
+	  Epetra_Vector b(*map);
+
+	  // calculate A^T * A
+	  EpetraExt::MatrixMatrix::Multiply(K, true, K, false, A);
+	  // calculate A^T * b
+	  K.Multiply(true, F, b);
+
+//	  A.Print(std::cout);
+//	  std::terminate();
+
+	  Epetra_LinearProblem Problem((Epetra_RowMatrix *) &A, &X, &b);
+
+
+	  bool write = true;
+	  if(write)
+	  {
+		  std::string id = "_t";
+		  id += std::to_string(i_time);
+		  id += "_i";
+		  id += std::to_string(i_nonlin);
+		  id += ".mat";
+		  EpetraExt::RowMatrixToMatlabFile(("gr/A" + id).c_str(), *((Epetra_RowMatrix *) Trilinos::K));
+		  EpetraExt::MultiVectorToMatlabFile(("gr/b" + id).c_str(), *((Epetra_MultiVector *) Trilinos::F));
+	  }
+  }
   AztecOO Solver(Problem);
 
   //Can set output solver parameter options below
@@ -587,7 +705,7 @@ void trilinos_solve_(double *x, const double *dirW, double &resNorm,
   Solver.SetAztecOption(AZ_output, AZ_none);
 #endif
 
-  setPreconditioner(precondType, Solver, coord);
+  setPreconditioner(precondType, Solver, xml, coord, i_time, i_nonlin);
 
   // Set convergence type as relative ||r|| <= relTol||b||
   Solver.SetAztecOption(AZ_conv, AZ_rhs);
@@ -718,7 +836,7 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 
   // set up linear problem
   Epetra_LinearProblem Problem((Epetra_RowMatrix *) &K, &X, &F);
-//  EpetraExt::RowMatrixToMatlabFile("K_direct.mat", *((Epetra_RowMatrix *) &K));
+  EpetraExt::RowMatrixToMatlabFile("K_direct.mat", *((Epetra_RowMatrix *) &K));
 //  std::terminate();
 
   // Compute norm of preconditioned multivector F that we will be solving
@@ -727,12 +845,38 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
 
   Amesos_BaseSolver * Solver;
   Amesos Factory;
-  Solver = Factory.Create("Klu", Problem);
-//  Solver = Factory.Create("Pardiso", Problem);
+  Solver = Factory.Create("Mumps", Problem);
+  //  Amesos_Mumps * Solver;
+  //  Solver = new Amesos_Mumps(Problem);
+
+  Teuchos::ParameterList AmesosList;
+  AmesosList.set("MatrixType", "general");
+//  AmesosList.set("Threshold", 1.0e-9);
+//  AmesosList.set("OutputLevel", 1);
+//  AmesosList.set("ComputeVectorNorms",true);
+//  AmesosList.set("ComputeTrueResidual",true);
+
+//  int ICTNL[40];
+//  double CTNL[5];
+//
+//  // verbosity max
+//  ICTNL[3] = 4;
+//
+//  Teuchos::ParameterList & MumpsList = AmesosList.sublist("mumps");
+//  MumpsList.set("ICTNL", ICTNL);
+//  MumpsList.set("CTNL", CTNL);
+
+
   if (Solver == 0)
   {
     std::cout<<"ERROR: Specified solver is not available"<<std::endl;
     exit(1);
+  }
+  error = Solver->SetParameters(AmesosList);
+  if (error != 0)
+  {
+	  std::cout<<"SetParameters non-zero: "<<error<<std::endl;
+	  exit(1);
   }
   if (Solver->GetProblem()->GetOperator() == 0)
   {
@@ -762,6 +906,17 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
     std::cout<<"Solve non-zero: "<<error<<std::endl;
     exit(1);
   }
+//  // MUMPS only
+//  int *infog = Solver->GetINFOG();
+//  for (int i=0; i<80; ++i)
+//    std::cout<<"INFOG"<<i+1<<"="<<infog[i]<<std::endl;
+//  double *rinfog = Solver->GetRINFOG();
+//  for (int i=0; i<40; ++i)
+//    std::cout<<"RINFOG"<<i+1<<"="<<rinfog[i]<<std::endl;
+//
+//
+//  Amesos_Utils *utils;
+//  utils->ComputeTrueResidual(*((Epetra_RowMatrix *) &K), *((Epetra_MultiVector *) &X), *((Epetra_MultiVector *) &F), false, "");
 
   // get solve time
   Teuchos::ParameterList TimingsList;
@@ -806,10 +961,11 @@ void trilinos_solve_direct_(double *x, const double *dirW, double &resNorm,
   Trilinos::X->PutScalar(0.0);
 
   // todo: free memory
+  delete Solver;
 } // trilinos_solve_direct_
 
 // ----------------------------------------------------------------------------
-void setPreconditioner(int precondType, AztecOO &Solver, const double *coord)
+void setPreconditioner(int precondType, AztecOO &Solver, char* xml, const double *coord, int &i_time, int &i_nonlin)
 {
   //initialize reordering for ILU/ILUT preconditioners
   Solver.SetAztecOption(AZ_reorder, 1);
@@ -860,34 +1016,68 @@ void setPreconditioner(int precondType, AztecOO &Solver, const double *coord)
   else if (precondType == TRILINOS_ML_PRECONDITIONER)
   {
 	checkDiagonalIsZero();
-    setMLPrec(Solver, coord);
+    setMLPrec(Solver, coord, i_time, i_nonlin);
   }
   else if (precondType == TRILINOS_GR_PRECONDITIONER)
     {
   	  checkDiagonalIsZero();
+  	  Solver.SetAztecOption(AZ_precond, AZ_none);
 
-  //	  Solver.SetAztecOption(AZ_precond, AZ_Jacobi);
 
-  	  Solver.SetAztecOption(AZ_precond, AZ_dom_decomp);
-  	  Solver.SetAztecOption(AZ_subdomain_solve, AZ_ilut);
+//  	  std::terminate();
+
+
+//  	  // ifpack
+//  	  Ifpack factory;
+//  	  Ifpack_Preconditioner *prec = factory.Create("IC", Trilinos::K);
+//
+//      Teuchos::ParameterList List;
+//      prec->SetParameters(List);
+//      prec->Initialize();
+//      prec->Compute();
+//      Solver.SetPrecOperator(prec);
+
+//  	  Solver.SetAztecOption(AZ_precond, AZ_dom_decomp);
+//  	  Solver.SetAztecOption(AZ_subdomain_solve, AZ_ilut);
 
  	  // Solver.SetAztecOption(AZ_overlap,AZ_diag);
 //  	  Solver.SetAztecOption(AZ_reorder,0);
 //  	  Solver.SetAztecOption(AZ_symmetric,0);
   	  // use k=1
-  	  Solver.SetAztecOption(AZ_graph_fill,1);
-  	  Solver.SetAztecParam(AZ_ilut_fill,2000); //10
-  	  Solver.SetAztecParam(AZ_drop, 0); //1.0e-12
-  	  Solver.SetPrecMatrix(Trilinos::K);
+//  	  Solver.SetAztecOption(AZ_graph_fill,1);
+//  	  Solver.SetAztecParam(AZ_ilut_fill,2000); //10
+//  	  Solver.SetAztecParam(AZ_drop, 0); //1.0e-12
+//  	  Solver.SetPrecMatrix(Trilinos::K);
 
   	  // Solver.SetAztecOption(AZ_scaling,AZ_row_sum);
       // Solver.SetAztecOption(AZ_output,AZ_all);
   	  // EpetraExt::RowMatrixToMatlabFile("K.mat", *((Epetra_RowMatrix *) Trilinos::K));
+//       Solver.SetAztecOption(AZ_output,AZ_all);
     }
+
+  else if (precondType == TRILINOS_XML_PRECONDITIONER)
+  {
+	  checkDiagonalIsZero();
+	  setML_XML_Prec(Solver, xml);
+  }
   else
   {
     std::cout << "ERROR: Preconditioner Type is undefined" << std::endl;
     exit(1);
+  }
+
+
+//  Solver.SetAztecOption(AZ_output,AZ_all);
+  bool write = false;
+  if(write)
+  {
+	  std::string id = "_t";
+	  id += std::to_string(i_time);
+	  id += "_i";
+	  id += std::to_string(i_nonlin);
+	  id += ".mat";
+	  EpetraExt::RowMatrixToMatlabFile(("gr/K" + id).c_str(), *((Epetra_RowMatrix *) Trilinos::K));
+	  EpetraExt::MultiVectorToMatlabFile(("gr/RHS" + id).c_str(), *((Epetra_MultiVector *) Trilinos::F));
   }
 } // setPreconditioner
 
@@ -896,7 +1086,7 @@ void setPreconditioner(int precondType, AztecOO &Solver, const double *coord)
  * Tune parameters for htis and IFPACK
  * Ref: https://trilinos.org/oldsite/packages/ml/mlguide5.pdf
  */
-void setMLPrec(AztecOO &Solver, const double *coord)
+void setMLPrec(AztecOO &Solver, const double *coord, int &i_time, int &i_nonlin)
 {
   // solve squared system
 //  Epetra_FECrsMatrix B(Copy, *(Trilinos::K_graph));
@@ -913,7 +1103,7 @@ void setMLPrec(AztecOO &Solver, const double *coord)
 
   // read xml file
   MLList.set("read XML", true);
-  MLList.set("XML input file", "in_linear/direct.xml");
+  MLList.set("XML input file", "in_linear/amg.xml");
 
   // set nullspace
 //  MLList.set("null space: type", "elasticity from coordinates");
@@ -931,9 +1121,6 @@ void setMLPrec(AztecOO &Solver, const double *coord)
 
 //	  MLList.set(name, &coord_i[i][0]);
   }
-
-//  EpetraExt::RowMatrixToMatlabFile("K.mat", *((Epetra_RowMatrix *) Trilinos::K));
-//  EpetraExt::MultiVectorToMatlabFile("RHS.mat", *((Epetra_MultiVector *) Trilinos::F));
 //  std::terminate();
   // ML general options
   // output level, 0 being silent and 10 verbose
@@ -1011,6 +1198,34 @@ void setMLPrec(AztecOO &Solver, const double *coord)
   delete[] options;
   delete[] params;
 }// setMLPrec
+
+void setML_XML_Prec(AztecOO &Solver, char* xml_file)
+{
+  Teuchos::ParameterList MLList;
+  int *options = new int[AZ_OPTIONS_SIZE];
+  double *params = new double[AZ_PARAMS_SIZE];
+
+  std::string fname = xml_file;
+
+  // remove weird FORTRAN character at the end
+  fname.pop_back();
+
+  // remove white space
+  fname.erase(std::remove_if(fname.begin(), fname.end(), ::isspace), fname.end());
+
+  // read xml file
+  MLList.set("ML output", 0);
+  MLList.set("read XML", true);
+  MLList.set("XML input file", fname);
+
+  // create the preconditioner object based on options in MLList and compute hierarchy
+  MLPrec = new ML_Epetra::MultiLevelPreconditioner(*Trilinos::K, MLList, false);
+  MLPrec->ComputePreconditioner();
+  Solver.SetPrecOperator(MLPrec);
+
+  delete[] options;
+  delete[] params;
+}
 
 // ----------------------------------------------------------------------------
 /**

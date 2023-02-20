@@ -1221,6 +1221,10 @@
                lEq%ls%PREC_Type = PREC_TRILINOS_DIRECT
                lEq%useTLS = .TRUE.
                stmp = CLR("Trilinos-Direct",3)
+            CASE ('trilinos-ml-xml')
+               lEq%ls%PREC_Type = PREC_TRILINOS_ML_XML
+               lEq%useTLS = .TRUE.
+               stmp = CLR("Trilinos-ML-XML",3)
 #endif
             CASE DEFAULT
                err = TRIM(list%ping("Preconditioner",lPtr))
@@ -1237,6 +1241,12 @@
             END SELECT
          END IF
          std = " Using preconditioner: "//TRIM(stmp)
+
+         IF(lEq%ls%PREC_Type .EQ. PREC_TRILINOS_ML_XML) THEN
+            lPtr => lPL%get(ctmp,"XML file path")
+            IF (.NOT.ASSOCIATED(lPtr)) err = "XML file not provided"
+            lEq%ls%xml = TRIM(ctmp)
+         END IF
 
          IF (lEq%useTLS) THEN
             lPtr => lPL%get(lEq%assmTLS, "Use Trilinos for assembly")
