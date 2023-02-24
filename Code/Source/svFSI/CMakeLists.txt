@@ -41,9 +41,12 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   # set(CMAKE_Fortran_FLAGS "-O0")
   # set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -cpp -pthread -std=legacy")
   # set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -Wall -Wconversion -Wline-truncation -pedantic -fimplicit-none -fbacktrace -fbounds-check -p -fcheck=all -ffpe-trap=invalid,zero,overflow,underflow")
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+  set(CMAKE_Fortran_FLAGS "-O3 -march=native")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fpp -pthread")
 else()
   # nothing for now
-  # may need to set for intel compiler or others
+  # may need to set for other compilers
 endif()
 
 # Find Trilinos package if requested
@@ -102,9 +105,39 @@ if(WITH_TRILINOS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 
-# svFSI requires LAPACK
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
+# Find PETSC package if requested
+if(SV_USE_PETSC)
+  # PETSC_DIR is the path to installed PETSC folder.
+  # In linux, it should be defined as an environment variable
+  # in bash shell.
+  IF(DEFINED ENV{PETSC_DIR})
+    set(PETSC_FOUND 1)
+  ELSE()
+    set(PETSC_FOUND 0)
+  ENDIF()
+
+  IF(PETSC_FOUND)
+    SET(PETSC_DIR $ENV{PETSC_DIR})
+    SET(PETSC_INCLUDE_DIRS "${PETSC_DIR}/include;${PETSC_DIR}/../include")
+    SET(PETSC_LIBRARY_DIRS "-L${PETSC_DIR}/lib -lpetsc")
+    MESSAGE("\nFound PETSC!  Here are the details: ")
+    MESSAGE("   PETSC_DIR = ${PETSC_DIR}")
+    MESSAGE("   PETSC_LIBRARY_DIRS = ${PETSC_LIBRARY_DIRS}")
+    MESSAGE("   PETSC_INCLUDE_DIRS = ${PETSC_INCLUDE_DIRS}")
+    MESSAGE("End of PETSC details\n")
+    MESSAGE("Setting WITH_PETSC to true\n")
+    set(WITH_PETSC 1)
+  ELSE()
+    MESSAGE(WARNING "Could not find PETSC. Compiling svFSI without PETSC.")
+  ENDIF()
+
+endif()
+
+# add PETSC flags and defines
+if(WITH_PETSC)
+  ADD_DEFINITIONS(-DWITH_PETSC)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic -std=c99")
+endif()
 
 
 set(FSRCS TYPEMOD.f
@@ -169,6 +202,15 @@ set(F90SRCS vtkComMod.f90
 set(CSRCS SPLIT.c
           vtkZpipe.c)
 
+if(WITH_PETSC)
+  set(CSRCS ${CSRCS} petsc_linear_solver.c)
+
+  # PETSC directories and libraries
+  include_directories(${PETSC_INCLUDE_DIRS})
+  link_directories(${PETSC_LIBRARY_DIRS})
+endif()
+
+
 set(CXXSRCS remeshTet.cpp)
 
 set(CXXSRCS ${CXXSRCS} FEMbeCmm.cpp)
@@ -206,14 +248,22 @@ target_link_libraries(${SV_SVFSI_EXE}
   ${GLOBAL_LIBRARIES}
   ${INTELRUNTIME_LIBRARIES}
   ${ZLIB_LIBRARY}
-  ${BLAS_LIBRARIES}
-  ${LAPACK_LIBRARIES}
   ${METIS_SVFSI_LIBRARY_NAME}
   ${PARMETIS_SVFSI_LIBRARY_NAME}
   ${TETGEN_LIBRARY_NAME}
   ${SV_MPI_Fortran_LIBRARIES}
   ${SV_LIB_SVFSILS_NAME}${SV_MPI_NAME_EXT}
   )
+
+if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+  # svFSI requires LAPACK
+  find_package(BLAS REQUIRED)
+  find_package(LAPACK REQUIRED)
+  target_link_libraries(${SV_SVFSI_EXE} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+  set_target_properties(svFSI PROPERTIES LINKER_LANGUAGE Fortran)
+  target_link_libraries(${SV_SVFSI_EXE} -mkl)
+endif()  
 
 # extra MPI libraries only if there are not set to NOT_FOUND or other null
 if(SV_MPI_EXTRA_LIBRARY)
@@ -222,4 +272,8 @@ endif()
 
 if(WITH_TRILINOS)
   target_link_libraries(${SV_SVFSI_EXE} ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES})
+endif()
+
+if(WITH_PETSC)
+  target_link_libraries(${SV_SVFSI_EXE} ${PETSC_LIBRARY_DIRS})
 endif()
