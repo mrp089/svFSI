@@ -302,7 +302,7 @@
                DO i=1, eq(iEq)%nDmn
                   IF (eq(iEq)%dmn(i)%phys .NE. phys_ustruct .AND.
      2                eq(iEq)%dmn(i)%phys .NE. phys_struct) CYCLE
-                  IF (eq(iEq)%dmn(i)%stM%isoType .NE. stIso_HO) err =
+                  IF (eq(iEq)%dmn(i)%stM%isoType .NE. stIso_HO_d) err =
      2               "Active strain is allowed with Holzapfel-Ogden "//
      3               "passive constitutive model only"
                END DO
@@ -2475,7 +2475,7 @@ c     2         "can be applied for Neumann boundaries only"
 
       CASE ("HGO")
       ! Neo-Hookean ground matrix + quad penalty + anistropic fibers !
-         lDmn%stM%isoType = stIso_HGO
+         lDmn%stM%isoType = stIso_HGO_d
          lDmn%stM%C10 = mu*0.5_RKIND
          lPtr => lSt%get(lDmn%stM%aff, "a4")
          lPtr => lSt%get(lDmn%stM%bff, "b4")
@@ -2496,7 +2496,7 @@ c     2         "can be applied for Neumann boundaries only"
 
       CASE ("HO", "Holzapfel")
       ! Holzapefel and Ogden model for myocardium !
-         lDmn%stM%isoType = stIso_HO
+         lDmn%stM%isoType = stIso_HO_d
          lPtr => lSt%get(lDmn%stM%a, "a")
          lPtr => lSt%get(lDmn%stM%b, "b")
          lPtr => lSt%get(lDmn%stM%aff, "a4f")
