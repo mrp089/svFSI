@@ -274,18 +274,28 @@ void petsc_solve_(PetscReal *resNorm,  PetscReal *initNorm,  PetscReal *dB, \
                   const PetscInt *iEq)
 {   
     PetscReal *a, *array;
-    PetscInt i, j, na;
-    PetscInt cEq = *iEq - 1;
+    PetscInt   i, j, na;
+    PetscInt   cEq = *iEq - 1;
+    PetscBool  usepreonly;
+    KSPType    ksptype;
+    Vec        lx, res;
     KSPConvergedReason reason;
     PetscLogDouble ts, te;
-    Vec lx;
 
     PetscLogStagePush(stages[4]);
     na = *maxIter;
     PetscMalloc1(na, &a);
     PetscTime(&ts);
     KSPSetOperators(psol[cEq].ksp, psol[cEq].A, psol[cEq].A);
-    KSPSetResidualHistory(psol[cEq].ksp, a, na, PETSC_TRUE);
+
+    /* Calculate residual for direct solver. KSP uses preconditioned norm. */
+    PetscObjectTypeCompare((PetscObject)psol[cEq].ksp, KSPPREONLY, &usepreonly);
+    if (usepreonly){
+        VecNorm(psol[cEq].b, NORM_2 , initNorm);
+    }
+    else {
+        KSPSetResidualHistory(psol[cEq].ksp, a, na, PETSC_TRUE);
+    }
     KSPSetUp(psol[cEq].ksp);
     KSPSolve(psol[cEq].ksp, psol[cEq].b, psol[cEq].b);
 
@@ -301,12 +311,17 @@ void petsc_solve_(PetscReal *resNorm,  PetscReal *initNorm,  PetscReal *dB, \
     PetscTime(&te);
 
     /* Get convergence info. */
-    KSPGetResidualHistory(psol[cEq].ksp, (const PetscReal **) &a, &na);
+    if (usepreonly){
+        *resNorm   = __DBL_EPSILON__;
+    }
+    else {
+        KSPGetResidualHistory(psol[cEq].ksp, (const PetscReal **) &a, &na);
+        *initNorm  = a[0];
+        *resNorm   = a[na-1];
+    }
     KSPGetIterationNumber(psol[cEq].ksp, numIter);
     KSPGetConvergedReason(psol[cEq].ksp, &reason);
     *converged = reason > 0 ? PETSC_TRUE : PETSC_FALSE;
-    *initNorm  = a[0];
-    *resNorm   = a[na-1];
     *dB        = 10.0 * log(*resNorm / *initNorm);
     *execTime  = te - ts;
 
