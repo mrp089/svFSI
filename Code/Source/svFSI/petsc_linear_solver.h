@@ -93,6 +93,7 @@ PetscLogStage  stages[6];  /* performance tuning. */
     
 #define PETSc_PC_FSILS  701
 #define PETSc_PC_RCS    709
+#define PETSc_PC        713
 
 /* Physics solved */
 #define EQ_fluid   201
@@ -114,7 +115,7 @@ PetscLogStage  stages[6];  /* performance tuning. */
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 void petsc_initialize_(const PetscInt *, const PetscInt *, const PetscInt *, \
                        const PetscInt *, const PetscInt *, const PetscInt *, \
-                       const PetscInt *, const PetscInt *);
+                       const PetscInt *, const PetscInt *, char *);
 void petsc_create_linearsystem_(const PetscInt *, const PetscInt *, const PetscInt *, \
                                 const PetscReal *, const PetscReal *);
 void petsc_create_linearsolver_(const PetscInt *, const PetscInt *, const PetscInt *, \
@@ -149,5 +150,7 @@ PetscErrorCode petsc_pc_rcs(const PetscInt, const PetscInt);
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 PetscErrorCode petsc_debug_save_vec(const char *, Vec);
 PetscErrorCode petsc_debug_save_mat(const char *, Mat);
+
+char * rm_blank(char *string);
 
 #endif

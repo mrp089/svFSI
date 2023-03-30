@@ -49,7 +49,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// set example
 	enum Example { none, aneurysm, tortuosity, stenosis };
 	Example example = aneurysm;
-	const bool example_asym = true;
+	const bool example_asym = false;
 	
 	double KsKi = 0.35;
 //	double KsKi = 0.0;

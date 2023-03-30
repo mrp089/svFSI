@@ -567,7 +567,7 @@
       CALL cm%bcast(lEq%ls%absTol)
       CALL cm%bcast(lEq%ls%mItr)
       CALL cm%bcast(lEq%ls%sD)
-      CALL cm%bcast(lEq%ls%xml)
+      CALL cm%bcast(lEq%ls%config)
 
 !     Distribute domain properties
       IF (cm%slv()) ALLOCATE(lEq%dmn(lEq%nDmn))
