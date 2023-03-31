@@ -65,7 +65,6 @@ void petsc_initialize_(const PetscInt *nNo, const PetscInt *mynNo, \
                        const PetscInt *svFSI_rowPtr, const PetscInt *svFSI_colPtr, char *inp)
 {   
     char* in_file = rm_blank(inp);
-    printf(in_file);
     if (access(in_file, F_OK) == 0) {
         PetscInitialize(NULL, NULL, in_file, NULL);
         PetscPrintf(MPI_COMM_WORLD, " <PETSC_INITIALIZE>: "
@@ -186,7 +185,7 @@ void petsc_create_linearsolver_(const PetscInt *lsType, const PetscInt *pcType, 
             break;
         case PETSc_GMRES:
             KSPSetType(psol[cEq].ksp, KSPGMRES);
-            KSPGMRESSetRestart(psol[cEq].ksp, *kSpace);
+//            KSPGMRESSetRestart(psol[cEq].ksp, *kSpace);
             break;
         case PETSc_BICGS:
             KSPSetType(psol[cEq].ksp, KSPBCGS);
