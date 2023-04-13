@@ -30,6 +30,7 @@
  */
 
 #include "petsc_linear_solver.h"
+#include <locale.h>
 
 /*
     Nomenclature used in this file:
@@ -55,19 +56,19 @@
      Functions that interact with Fortran
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
 /*
     Initialize PETSc and create lhs for PETSc.
 */
 void petsc_initialize_(const PetscInt *nNo, const PetscInt *mynNo, \
                        const PetscInt *nnz, const PetscInt *nEq, \
                        const PetscInt *svFSI_ltg, const PetscInt *svFSI_map, \
-                       const PetscInt *svFSI_rowPtr, const PetscInt *svFSI_colPtr)
+                       const PetscInt *svFSI_rowPtr, const PetscInt *svFSI_colPtr, char *inp)
 {   
-    if (access("petsc_option.inp", F_OK) == 0) {
-        PetscInitialize(NULL, NULL, "petsc_option.inp", NULL);
+    char* in_file = rm_blank(inp);
+    if (access(in_file, F_OK) == 0) {
+        PetscInitialize(NULL, NULL, in_file, NULL);
         PetscPrintf(MPI_COMM_WORLD, " <PETSC_INITIALIZE>: "
-                "use linear solver config. in petsc_option.inp.\n");
+                "use linear solver config. from file.\n");
     }
     else {
         PetscInitialize(NULL, NULL, NULL, NULL);
@@ -184,7 +185,7 @@ void petsc_create_linearsolver_(const PetscInt *lsType, const PetscInt *pcType, 
             break;
         case PETSc_GMRES:
             KSPSetType(psol[cEq].ksp, KSPGMRES);
-            KSPGMRESSetRestart(psol[cEq].ksp, *kSpace);
+//            KSPGMRESSetRestart(psol[cEq].ksp, *kSpace);
             break;
         case PETSc_BICGS:
             KSPSetType(psol[cEq].ksp, KSPBCGS);
@@ -202,6 +203,7 @@ void petsc_create_linearsolver_(const PetscInt *lsType, const PetscInt *pcType, 
     KSPGetPC(psol[cEq].ksp, &pc);
     switch (*pcType)
     {
+        case PETSc_PC:
         case PETSc_PC_FSILS:
             PCSetType(pc, PCJACOBI);
             break;
@@ -898,4 +900,28 @@ PetscErrorCode petsc_debug_save_mat(const char *filename, Mat mat)
     PetscViewerDestroy(&viewer);
 
     PetscFunctionReturn(0);
+}
+
+// Function removing spaces from string
+char * rm_blank(char *string)
+{
+    // remove weird FORTRAN character
+    string[strlen(string)-1] = '\0';
+
+    // non_space_count to keep the frequency of non space characters
+    int non_space_count = 0;
+
+    //Traverse a string and if it is non space character then, place it at index non_space_count
+    for (int i = 0; string[i] != '\0'; i++)
+    {
+        if (string[i] != ' ')
+        {
+            string[non_space_count] = string[i];
+            non_space_count++;//non_space_count incremented
+        }
+    }
+
+    //Finally placing final character at the string end
+    string[non_space_count] = '\0';
+    return string;
 }

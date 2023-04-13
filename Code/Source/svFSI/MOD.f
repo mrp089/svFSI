@@ -422,8 +422,8 @@
          REAL(KIND=RKIND) dB
 !        Calling duration              (OUT)
          REAL(KIND=RKIND) callD
-!        XML configuration file for ML preconditioner
-         CHARACTER(LEN=stdL) xml
+!        Configuration file for linear solvers (Trilinos, PETSc)
+         CHARACTER(LEN=stdL) config
       END TYPE lsType
 
 !     Contact model type

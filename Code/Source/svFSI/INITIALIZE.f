@@ -225,7 +225,8 @@
 #ifdef WITH_PETSC
       dbg = "Calling PETSC_INITIALIZE"
       CALL PETSC_INITIALIZE(lhs%nNo, lhs%mynNo, lhs%nnz, nEq, ltg,
-     2                      lhs%map, lhs%rowPtr, lhs%colPtr)
+     2                      lhs%map, lhs%rowPtr, lhs%colPtr,
+     3                      eq(1)%ls%config)
       DO iEq = 1, nEq
          CALL PETSC_CREATE_LINEARSOLVER(eq(iEq)%ls%LS_type, 
      2   eq(iEq)%ls%PREC_Type, eq(iEq)%ls%sD, eq(iEq)%ls%mItr,
