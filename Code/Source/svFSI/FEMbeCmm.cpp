@@ -44,16 +44,16 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		std::terminate();
 
 	// couple wss
-	const bool coup_wss = true;
+	const bool coup_wss = false;
 
 	// set example
 	enum Example { none, aneurysm, tortuosity, stenosis };
 	Example example = aneurysm;
 	const bool example_asym = true;
 	
-	// double KsKi = 0.35;
-//	double KsKi = 0.0;
-	double KsKi = 1.0;
+	double KsKi = 0.35;
+	// double KsKi = 0.0;
+	// double KsKi = 1.0;
 
 	const double curve = 0.0;
 
@@ -79,7 +79,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 101;
+	const int n_t_end = 11;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -177,8 +177,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double delta = 0.0;
 
 	// hyperelastic incompressibility
-	const double Jdep = 0.9999;
-	const double lm = 1.0e3*mu;
+	const double Jdep = 0.999999;
+	const double lm = 1.0e5*mu;
 
 	// todo: do outside and once per time step
 	// select G&R mode
@@ -217,7 +217,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
 	if (example == aneurysm and mode == gr) {
 		// apply transfer function to advance time more equally
-		const double t_fac = 3.0;
+		const double t_fac = 2.0;
 		f_time = tanh(t_fac * f_time) / tanh(t_fac);
 
 		// no fiber reorientation
@@ -227,10 +227,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double z_om = lo/2.0;
 
 		double theta_od;
-		double phi_e_hm = 0.7;
+		double phi_e_hm = 0.5;
 		int vza;
 		int vzc;
 		double z_od;
+		double nc;
 		if (example_asym)
 		{
 			// 8d
@@ -239,9 +240,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //			theta_od = 3.0;
 
 			z_od = lo/4.0/mult;
-			theta_od = 0.55;
+			theta_od = 0.9;
 			vza = 2;
-			vzc = 6;
+			vzc = 2;
+			nc = 0.5;
 		}
 		else
 		{
@@ -256,7 +258,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// azimuth factor (0, 1]
 		double f_cir = 1.0;
 		if (example_asym)
-			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI * theta_od)), vzc));
+			// f_cir = (nc + exp(-pow(abs((azimuth - M_PI) / (M_PI * theta_od)), vzc))) / (1.0 + nc);
+			// f_cir = (nc + cos(azimuth - M_PI)) / (1.0 + nc);
+			f_cir = (1.0 + cos(pow(azimuth / M_PI - 1.0, vzc) * M_PI)) / 2.0;
 
 		mu   *= 1.0 - f_time * f_axi * f_cir * phi_e_hm;
 		KsKi *= 1.0 - f_time * f_axi * f_cir;
