@@ -65,7 +65,6 @@
 
 !     Loop over all elements of mesh
       DO e=1, lM%nEl
-
 !        Update domain and proceed if domain phys and eqn phys match
          cDmn  = DOMAIN(lM, cEq, e)
          cPhys = eq(cEq)%dmn(cDmn)%phys
@@ -73,6 +72,57 @@
 
 !        Update shape functions for NURBS
          IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, e)
+
+!         CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+         CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+
+!        Assembly
+#ifdef WITH_TRILINOS
+         IF (eq(cEq)%assmTLS) THEN
+            CALL TRILINOS_DOASSEM(eNoN, ptr, lK, lR)
+         ELSE
+#endif
+            CALL DOASSEM(eNoN, ptr, lK, lR)
+#ifdef WITH_TRILINOS
+         END IF
+#endif
+      END DO ! e: loop
+
+      DEALLOCATE(ptr, xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, N, Nx,
+     2   lR, lK, lVWP)
+
+      RETURN
+      END SUBROUTINE CONSTRUCT_dSOLID
+
+      SUBROUTINE EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+      USE COMMOD
+      USE ALLFUN
+      IMPLICIT NONE
+      TYPE(mshType), INTENT(INOUT) :: lM
+      REAL(KIND=RKIND), INTENT(IN) :: Ag(tDof,tnNo), Yg(tDof,tnNo),
+     2   Dg(tDof,tnNo)
+
+      INTEGER(KIND=IKIND) a, e, g, Ac, eNoN, cPhys, iFn, nFn
+      REAL(KIND=RKIND) w, Jac, grInt(nGrInt), ksix(nsd,nsd)
+
+      REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,lM%eNoN),
+     2   lK(dof*dof,lM%eNoN,lM%eNoN)
+
+      INTEGER(KIND=IKIND), INTENT(INOUT) :: ptr(lM%eNoN)
+
+      REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
+     2   dl(:,:), bfl(:,:), fN(:,:), pS0l(:,:), pSl(:), ya_l(:), N(:),
+     3   Nx(:,:), lVWP(:,:), lRtau(:,:)
+
+      eNoN = lM%eNoN
+      nFn  = lM%nFn
+      IF (nFn .EQ. 0) nFn = 1
+
+!     STRUCT: dof = nsd
+      ALLOCATE(xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
+     2   dl(tDof,eNoN), bfl(nsd,eNoN), fN(nsd,nFn), pS0l(nsymd,eNoN),
+     3   pSl(nsymd), ya_l(eNoN), N(eNoN), Nx(nsd,eNoN),
+     4   lVWP(nvwp,eNoN), lRtau(dof,eNoN))
 
 !        Create local copies
          fN   = 0._RKIND
@@ -141,23 +191,105 @@
 
          END DO ! g: loop
 
-!        Assembly
-#ifdef WITH_TRILINOS
-         IF (eq(cEq)%assmTLS) THEN
-            CALL TRILINOS_DOASSEM(eNoN, ptr, lK, lR)
-         ELSE
-#endif
-            CALL DOASSEM(eNoN, ptr, lK, lR)
-#ifdef WITH_TRILINOS
-         END IF
-#endif
-      END DO ! e: loop
-
-      DEALLOCATE(ptr, xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, N, Nx,
-     2   lR, lK, lVWP)
+!     ptr, lR, lK,
+      DEALLOCATE(xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, N, Nx, lVWP)
 
       RETURN
-      END SUBROUTINE CONSTRUCT_dSOLID
+      END SUBROUTINE EVAL_dSOLID
+
+
+!####################################################################
+
+
+      SUBROUTINE EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+      USE COMMOD
+      USE ALLFUN
+      IMPLICIT NONE
+      TYPE(mshType), INTENT(INOUT) :: lM
+      REAL(KIND=RKIND), INTENT(INOUT) :: Ag(tDof,tnNo), Yg(tDof,tnNo),
+     2   Dg(tDof,tnNo), lR(dof,lM%eNoN), lK(dof*dof,lM%eNoN,lM%eNoN)
+
+      INTEGER(KIND=IKIND) e, Ac, eNoN
+      REAL(KIND=RKIND) w, Jac, grInt(nGrInt), ksix(nsd,nsd)
+
+      INTEGER(KIND=IKIND), INTENT(INOUT) :: ptr(lM%eNoN)
+      INTEGER(KIND=IKIND), ALLOCATABLE :: ptrtmp(:)
+      REAL(KIND=RKIND), ALLOCATABLE :: lKtmp(:,:,:), lRp(:,:), dlR(:,:),
+     2   du
+      INTEGER(KIND=IKIND) ii, jj, kk, ll, dd
+      REAL(KIND=RKIND) :: fa, fy, fd
+
+      eNoN = lM%eNoN
+
+!     STRUCT: dof = nsd
+      ALLOCATE(ptrtmp(lM%eNoN), lRp(dof,eNoN), lKtmp(dof*dof,eNoN,eNoN))
+
+!     time integration factors
+      fd = eq(cEq)%af*eq(cEq)%beta*dt*dt
+      fy = eq(cEq)%af*eq(cEq)%gam*dt
+      fa = eq(cEq)%am
+
+!     initialize
+      lK = 0._RKIND
+
+!     central evaluation
+      CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+
+!     loop nodes
+      DO ii=1,dof
+        DO jj=1,eNoN
+          du = 1.E-8_RKIND
+
+!         global node id
+          Ac = lM%IEN(jj,e)
+
+!         perturb displacement vector
+          Dg(ii,Ac) = Dg(ii,Ac) + du
+
+          CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptrtmp, lKtmp, lRp)
+
+!         restore displacement vector
+          Dg(ii,Ac) = Dg(ii,Ac) - du
+!
+!         calculate finite difference
+          dlR = fd * (lRp - lR) / du
+
+!         perturb velocity vector
+          Yg(ii,Ac) = Yg(ii,Ac) + du
+
+          CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptrtmp, lKtmp, lRp)
+
+!         restore velocity vector
+          Yg(ii,Ac) = Yg(ii,Ac) - du
+!
+!         calculate finite difference
+          dlR = dlR + fy * (lRp - lR) / du
+
+!         perturb acceleration vector
+          Ag(ii,Ac) = Ag(ii,Ac) + du
+
+          CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptrtmp, lKtmp, lRp)
+
+!         restore acceleration vector
+          Ag(ii,Ac) = Ag(ii,Ac) - du
+!
+!         calculate finite difference
+          dlR = dlR + fa * (lRp - lR) / du
+
+!         assign to tangent matrix
+          DO kk=1,dof
+            dd = (kk - 1) * dof + ii
+            DO ll=1,lM%eNoN
+              lK(dd,ll,jj) = dlR(kk,ll)
+            END DO
+          END DO
+
+        END DO
+      END DO
+      RETURN
+      END SUBROUTINE EVAL_dSOLID_FD
+
+
 !####################################################################
       SUBROUTINE STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
      2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP, lRtau)
@@ -352,21 +484,6 @@
      2              Bm(3,3,a)*DBm(3,3) + Bm(4,3,a)*DBm(4,3) +
      2              Bm(5,3,a)*DBm(5,3) + Bm(6,3,a)*DBm(6,3)
             lK(2*dof+3,a,b) = lK(2*dof+3,a,b) + w*(T1 + afl*BmDBm)
-
-!           linearization of WSS-dependent material
-!           todo: do only for g&r material
-!           todo: do only on elements connected to the interface
-
-            DO ii=1,3
-               NxP = 0._RKIND
-               DO jj=1,3
-                  NxP = NxP + Ptau(ii,jj) * Nx(jj,a)
-               END DO
-               DO jj=1,3
-                  dd = (jj - 1) * dof + ii
-                  lK(dd,a,b) = lK(dd,a,b) + w*afl*(NxP * dwss(jj,b))
-               END DO
-            END DO
          END DO
       END DO
 
