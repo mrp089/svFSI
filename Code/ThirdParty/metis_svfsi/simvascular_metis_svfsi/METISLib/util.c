@@ -128,14 +128,14 @@ void GKfree(void **ptr1,...)
     free(*ptr1);
   *ptr1 = NULL;
 
-  va_start(plist, ptr1);
+  //va_start(plist, ptr1);
 
   /* while ((int)(ptr = va_arg(plist, void **)) != -1) { */
-  while ((ptr = va_arg(plist, void **)) != LTERM) {
-    if (*ptr != NULL)
-      free(*ptr);
-    *ptr = NULL;
-  }
+  //while ((ptr = va_arg(plist, void **)) != LTERM) {
+  //  if (*ptr != NULL)
+  //    free(*ptr);
+  //  *ptr = NULL;
+  //}
 
   va_end(plist);
 }            
