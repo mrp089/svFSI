@@ -420,6 +420,8 @@
          REAL(KIND=RKIND) dB
 !        Calling duration              (OUT)
          REAL(KIND=RKIND) callD
+!        Configuration file for linear solvers (Trilinos, PETSc)
+         CHARACTER(LEN=stdL) config
       END TYPE lsType
 
 !     Contact model type

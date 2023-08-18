@@ -1210,6 +1210,13 @@
                lEq%useTLS = .TRUE.
                stmp = CLR("Trilinos-ML",3)
 #endif
+#ifdef WITH_PETSC
+            CASE ('petsc')
+               lEq%ls%PREC_Type = PREC_PETSC
+               lEq%useTLS = .TRUE.
+               stmp = CLR("PETSc",3)
+#endif
+
             CASE DEFAULT
                err = TRIM(list%ping("Preconditioner",lPtr))
      2          //" Undefined type"
@@ -1225,6 +1232,17 @@
             END SELECT
          END IF
          std = " Using preconditioner: "//TRIM(stmp)
+
+         IF(lEq%ls%PREC_Type .EQ. PREC_TRILINOS_ML_XML) THEN
+            lPtr => lPL%get(ctmp,"XML file path")
+            IF (.NOT.ASSOCIATED(lPtr)) err = "XML file not provided"
+            lEq%ls%config = TRIM(ctmp)
+         END IF
+         IF(lEq%ls%PREC_Type .EQ. PREC_PETSC) THEN
+            lPtr => lPL%get(ctmp,"PETSc file path")
+            IF (.NOT.ASSOCIATED(lPtr)) err = "No PETSc config file"
+            lEq%ls%config = TRIM(ctmp)
+         END IF
 
          IF (lEq%useTLS) THEN
             lPtr => lPL%get(lEq%assmTLS, "Use Trilinos for assembly")
