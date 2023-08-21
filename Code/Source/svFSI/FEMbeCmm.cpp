@@ -51,9 +51,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	Example example = aneurysm;
 	const bool example_asym = true;
 	
-	double KsKi = 0.35;
+	// double KsKi = 0.35;
 	// double KsKi = 0.0;
-	// double KsKi = 1.0;
+	double KsKi = 1.0;
 
 	const double curve = 0.0;
 
@@ -227,10 +227,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double z_om = lo/2.0;
 
 		double theta_od;
-		double phi_e_hm = 0.5;
-		int vza;
+		double phi_e_hm = 0.35;
+		const int vza = 2;
 		int vzc;
-		double z_od;
+		const double z_od = lo/4.0/mult;
 		double nc;
 		if (example_asym)
 		{
@@ -239,17 +239,17 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 //			vz = 5;
 //			theta_od = 3.0;
 
-			z_od = lo/4.0/mult;
-			theta_od = 0.9;
-			vza = 2;
+			// z_od = lo/4.0/mult;
+			// theta_od = 0.9;
+			// vza = 4;
 			vzc = 2;
-			nc = 0.5;
+			nc = 5.0;
 		}
 		else
 		{
 			// 8b, 8c
-			z_od = lo/4.0/mult;
-			vza = 2;
+			// z_od = lo/4.0/mult;
+			// vza = 2;
 		}
 
 		// axial factor (0, 1]
@@ -260,7 +260,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		if (example_asym)
 			// f_cir = (nc + exp(-pow(abs((azimuth - M_PI) / (M_PI * theta_od)), vzc))) / (1.0 + nc);
 			// f_cir = (nc + cos(azimuth - M_PI)) / (1.0 + nc);
-			f_cir = (1.0 + cos(pow(azimuth / M_PI - 1.0, vzc) * M_PI)) / 2.0;
+			f_cir = (nc + (1.0 + cos(pow(azimuth / M_PI - 1.0, vzc) * M_PI)) / 2.0) / (1.0 + nc);
 
 		mu   *= 1.0 - f_time * f_axi * f_cir * phi_e_hm;
 		KsKi *= 1.0 - f_time * f_axi * f_cir;
