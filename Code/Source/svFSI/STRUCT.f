@@ -175,8 +175,7 @@
       INTEGER(KIND=IKIND) :: a, b, i, j, k, ii, jj, dd
       REAL(KIND=RKIND) :: rho, dmp, T1, amd, afl, ya_g, fb(3), ud(3),
      2   NxSNx, BmDBm, F(3,3), S(3,3), P(3,3), Dm(6,6), DBm(6,3),
-     3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp), Stau(3,3), Ptau(3,3),
-     4   dwss(3,eNoN), NxP
+     3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp)
 
 !     Define parameters
       rho     = eq(cEq)%dmn(cDmn)%prop(solid_density)
@@ -233,12 +232,10 @@
       S0(3,2) = S0(2,3)
       S0(1,3) = S0(3,1)
 
-      dwss = lVWP(10:12,:)
-
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
       CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
-     2              eVWP, Stau)
+     2              eVWP)
 
 !     Prestress
       pSl(1) = S(1,1)
@@ -251,7 +248,6 @@
 
 !     1st Piola-Kirchhoff tensor (P)
       P    = MATMUL(F, S)
-      Ptau = MATMUL(F, Stau)
 
       DO a=1, eNoN
          Bm(1,1,a) = Nx(1,a)*F(1,1)
@@ -287,14 +283,6 @@
      2      Nx(2,a)*P(2,2) + Nx(3,a)*P(2,3))
          lR(3,a) = lR(3,a) + w*(N(a)*ud(3) + Nx(1,a)*P(3,1) +
      2      Nx(2,a)*P(3,2) + Nx(3,a)*P(3,3))
-
-!         DO ii=1,3
-!            NxP = 0._RKIND
-!            DO jj=1,3
-!               NxP = NxP + Ptau(ii,jj) * Nx(jj,a)
-!            END DO
-!            lRtau(ii,a) = lRtau(ii,a) + w * NxP
-!         END DO
 
          DO b=1, eNoN
 !           Geometric stiffness
@@ -352,21 +340,6 @@
      2              Bm(3,3,a)*DBm(3,3) + Bm(4,3,a)*DBm(4,3) +
      2              Bm(5,3,a)*DBm(5,3) + Bm(6,3,a)*DBm(6,3)
             lK(2*dof+3,a,b) = lK(2*dof+3,a,b) + w*(T1 + afl*BmDBm)
-
-!           linearization of WSS-dependent material
-!           todo: do only for g&r material
-!           todo: do only on elements connected to the interface
-
-            DO ii=1,3
-               NxP = 0._RKIND
-               DO jj=1,3
-                  NxP = NxP + Ptau(ii,jj) * Nx(jj,a)
-               END DO
-               DO jj=1,3
-                  dd = (jj - 1) * dof + ii
-                  lK(dd,a,b) = lK(dd,a,b) + w*afl*(NxP * dwss(jj,b))
-               END DO
-            END DO
          END DO
       END DO
 

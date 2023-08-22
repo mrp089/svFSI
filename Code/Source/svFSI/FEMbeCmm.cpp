@@ -23,7 +23,7 @@
 extern"C"
 {
 
-void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out, double* S_tau_out)
+void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
@@ -192,28 +192,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	else
 		mode = gr;
 
-	// if (0.0 <= t && t < pretime - epst)
-	// 	mode = prestress;
-	// // last step of prestressing: do one gr update to store history values
-	// else if (pretime - epst <= t && t <= pretime + epst)
-	// 	mode = gr;
-	// else
-	// 	if ((std::fmod(t + epst, dt * n_t_update) < epst*1.0e3) && (t <= endtime + epst))
-	// 		mode = gr;
-	// 	else
-	// 		mode = elastic;
-
-	// pick one Gauss point for output
-	bool out = false;
-	if (abs(eVWP[0] - 0.678501) < 1.0e-6)
-		if (abs(eVWP[1] - 0.0264156) < 1.0e-6)
-			if (abs(eVWP[2] - 0.211325) < 1.0e-6)
-				out = true;
-//	out = false;
-
-//	if(out)
-//		std::cout<<"mode "<<mode<<std::endl;
-
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
 	if (example == aneurysm and mode == gr) {
 		// apply transfer function to advance time more equally
@@ -347,9 +325,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// computation of the second Piola-Kirchhoff stress
 	mat3ds S(0.0);
-
-	// derivative of 2PK w.r.t. tau_wh
-	mat3ds Stau(0.0);
 
 	// computation of spatial moduli
 	tens4dmm css;
@@ -541,37 +516,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		const double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;				// rIrIo -> rIorIo = 1 for F -> Fo
 
-		const double r_ratio = ro/rIo - (ro/rIo - 1) * lr/lt;
-
-		const double coup_omega = 0.25;
-		const double tau_relax = coup_omega * tau + (1.0 - coup_omega) * tau_old;
 		double tau_ratio;
 		if (coup_wss)
-//			tau_ratio = 1; // extremely stable!!
-//			tau_ratio = pow(rIrIo,-3); // works perfectly
 			tau_ratio = tau/tauo;
-//			tau_ratio = tau/tauo/rIrIo;
-//			tau_ratio = tau_relax/tauo;
-//			tau_ratio = tau_relax/tauo * pow(rIrIo,-3);
-//			tau_ratio = tau_relax/tauo * lr; // works for minimal.json, axial oscillations in fsg_coarse.json
-//			tau_ratio = tau_relax/tauo/rIrIo/rIrIo; // converges but starts oscillating
-//			tau_ratio = tau/tauo * r_ratio; // starts oscillating
-//			tau_ratio = tau_relax/tauo * pow(r_ratio,3); // doesn't converge
-//			tau_ratio = pow(tau/tauo -1, 3) + 1; // super stable but starts oscillating when increasing pressure
-//			tau_ratio = (tanh(tau/tauo - 1.0) + 1) * r_ratio;
-//			tau_ratio = pow(tanh(tau/tauo - 1.0), 3) + 1; // stable, starts oscillating in hypertension with minimal.json
-//			tau_ratio = (tanh(tau/tauo - 1.0) + 1);
 		else
 			tau_ratio = pow(rIrIo,-3);
-//		if(out)
-//		{
-//			std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
-//			std::cout<<"rIrIo "<<rIrIo<<std::endl;
-//			std::cout<<"tau_old "<<tau_old<<" tau "<<tau<<" tau_relax "<<tau_relax<<std::endl;
-//			std::cout<<lr<<std::endl;
-//			std::cout<<"tau_ratio "<<tau_ratio<<" r_ratio "<<r_ratio<<std::endl;
-//		}
-//		std::cout<<"tau_ratio "<<tau_ratio<<std::endl;
 
 		mat3ds sNm = phim*smo;									// phim*smhato = phim*smo
 		mat3ds sNc = phic*sco;									// phic*schato = phic*sco
@@ -599,10 +548,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
 
 		S = Sx - J*p*Ci;
-
-		// dS/dtau
-		if (coup_wss)
-			Stau = J * svo/(1.0-delta) * KsKi * EPS / tauo * Ci;
 
 		// compute tangent
 
@@ -808,15 +753,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 						std::terminate();
 				}
 
-	ten_2nd S2t = (ten_2nd) S_tau_out;
-	for (int i=0; i < 3; i++)
-		for (int j=0; j < 3; j++)
-		{
-			S2t[j][i] = Stau(i, j);
-			if (std::isnan(Stau(i, j)))
-				std::terminate();
-		}
-
 	// store prestress state
 	if (mode == prestress)
 	{
@@ -883,7 +819,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	}
 }
 
-void stress_tangent_stvk_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out, double* S_tau_out)
+void stress_tangent_stvk_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);

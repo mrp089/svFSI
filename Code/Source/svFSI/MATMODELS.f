@@ -38,16 +38,14 @@
 
 !     Compute 2nd Piola-Kirchhoff stress and material stiffness tensors
 !     including both dilational and isochoric components
-      SUBROUTINE GETPK2CC(lDmn, F, nfd, fl, ya, grInt, S, Dm, eVWP,
-     2                    Stau)
+      SUBROUTINE GETPK2CC(lDmn, F, nfd, fl, ya, grInt, S, Dm, eVWP)
       USE MATFUN
       USE COMMOD
       IMPLICIT NONE
       TYPE(dmnType), INTENT(IN) :: lDmn
       INTEGER(KIND=IKIND), INTENT(IN) :: nfd
       REAL(KIND=RKIND), INTENT(IN) :: F(nsd,nsd), fl(nsd,nfd), ya
-      REAL(KIND=RKIND), INTENT(OUT) :: S(nsd,nsd), Dm(nsymd,nsymd),
-     2                                 Stau(nsd,nsd)
+      REAL(KIND=RKIND), INTENT(OUT) :: S(nsd,nsd), Dm(nsymd,nsymd)
       REAL(KIND=RKIND), INTENT(INOUT) :: grInt(nGrInt)
       REAL(KIND=RKIND), INTENT(IN), OPTIONAL :: eVWP(nvwp)
 
@@ -551,7 +549,7 @@ c     2      (EXP(stM%khs*Ess) + EXP(-stM%khs*Ess) + 2.0_RKIND)
          END IF
       
       CASE (stGR_equi)
-            CALL stress_tangent(F, fl, time, eVWP, grInt, S, CC, Stau)
+            CALL stress_tangent(F, fl, time, eVWP, grInt, S, CC)
             minorFlag = .TRUE.
 
       CASE DEFAULT
