@@ -532,7 +532,7 @@
             outPuts(3)  = out_cauchy
             outPuts(4)  = out_strain
          ELSE
-            nDOP = (/12,2,0,0/)
+            nDOP = (/13,2,0,0/)
             outPuts(1)  = out_displacement
             outPuts(2)  = out_mises
             outPuts(3)  = out_stress
@@ -545,6 +545,7 @@
             outPuts(10) = out_fibAlign
             outPuts(11) = out_velocity
             outPuts(12) = out_acceleration
+            outPuts(13) = out_gr
          END IF
 
          CALL READLS(lSolver_CG, lEq, list)
@@ -1456,6 +1457,11 @@
             lEq%output(iOut)%o    = 0
             lEq%output(iOut)%l    = 1
             lEq%output(iOut)%name = "Viscosity"
+         case (out_gr)
+            lEq%output(iOut)%grp  = outGrp_GR
+            lEq%output(iOut)%o    = 0
+            lEq%output(iOut)%l    = 50
+            lEq%output(iOut)%name = "GR"
          CASE DEFAULT
             err = "Internal output undefined"
          END SELECT

@@ -621,7 +621,8 @@
                   DEALLOCATE(tmpV)
                   ALLOCATE(tmpV(maxnsd,msh(iM)%nNo))
 
-               CASE (outGrp_stress, outGrp_cauchy, outGrp_mises)
+               CASE (outGrp_stress, outGrp_cauchy, outGrp_mises, 
+     2               outGrp_GR)
                   IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
                   IF (ALLOCATED(tmpVe)) DEALLOCATE(tmpVe)
                   ALLOCATE(tmpV(l,msh(iM)%nNo), tmpVe(msh(iM)%nEl))

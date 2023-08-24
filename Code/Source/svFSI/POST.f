@@ -50,57 +50,14 @@
 
       REAL(KIND=RKIND), ALLOCATABLE :: tmpV(:,:), tmpVe(:), dtmpVe(:,:)
       REAL(KIND=RKIND) tol, du, tau0, taup, diff
-      REAL(KIND=RKIND), ALLOCATABLE :: dtau_fd(:,:), tmpVp(:,:)
 
       DO iM=1, nMsh
          IF (ALLOCATED(tmpV)) DEALLOCATE(tmpV)
          ALLOCATE(tmpV(maxnsd,msh(iM)%nNo))
          ALLOCATE(tmpVe(msh(iM)%nEl))
          ALLOCATE(dtmpVe(maxnsd,msh(iM)%nNo))
-         ALLOCATE(dtau_fd(maxnsd,msh(iM)%nNo))
-         ALLOCATE(tmpVp(maxnsd,msh(iM)%nNo))
          IF (outGrp.EQ.outGrp_WSS .OR. outGrp.EQ.outGrp_trac) THEN
             CALL BPOST(msh(iM), tmpV, tmpVe, dtmpVe, lY, lD, outGrp)
-!
-!!           calculate dtmpVe with finite differences
-!            tol = 1.E-2_RKIND
-!
-!!           loop nodes
-!            DO ii=1,msh(iM)%nNo
-!               tau0 = SQRT(NORM(tmpV(:,ii)))
-!!           loop space
-!               DO jj=1,maxnsd
-!!                 choose step size
-!                  IF (.NOT.ISZERO(lY(jj,ii))) THEN
-!                     du = tol * ABS(lY(jj,ii))
-!                  ELSE
-!                     du = tol
-!                  END IF
-!
-!!                 perturb solution vector
-!                  lY(jj,ii) = lY(jj,ii) + du
-!
-!                  CALL BPOST(msh(iM), tmpVp, tmpVe, dtmpVe, lY, lD,
-!     2                       outGrp)
-!
-!!                 restore solution vector
-!                  lY(jj,ii) = lY(jj,ii) - du
-!
-!                  taup = SQRT(NORM(tmpVp(:,ii)))
-!
-!!                 calculate finite difference
-!                  dtau_fd(jj,ii) = (taup - tau0) / du
-!
-!                  IF (.NOT.ISZERO(dtmpVe(jj,ii))) THEN
-!                     diff = ABS((dtmpVe(jj,ii) - dtau_fd(jj,ii))
-!     2                      / dtmpVe(jj,ii))
-!                  ELSE
-!                     diff = 0._RKIND
-!                  END IF
-!
-!                  WRITE(*,*) dtmpVe(jj,ii), dtau_fd(jj,ii), diff
-!               END DO
-!            END DO
 
             DO a=1, msh(iM)%nNo
                Ac = msh(iM)%gN(a)
@@ -891,7 +848,10 @@
                   resl(1) = vmises
                   sE(e)   = sE(e) + w*vmises
                END IF
-
+            CASE (outGrp_GR)
+               CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
+     2               grInt, S, Dm, eVWP, Stau)
+               resl = grInt
             END SELECT
 
             DO a=1, fs%eNoN
@@ -1475,17 +1435,3 @@
       STOP
 
       END SUBROUTINE PPBIN2VTK
-!####################################################################
-!     post-processing function for internal g&r variables
-      SUBROUTINE GRPOST(lM, nFn, res, lD, iEq)
-      USE COMMOD
-      USE ALLFUN
-      USE MATFUN
-      IMPLICIT NONE
-
-      INTEGER(KIND=IKIND), INTENT(IN) :: iEq, nFn
-      TYPE(mshType), INTENT(INOUT) :: lM
-      REAL(KIND=RKIND), INTENT(INOUT) :: res(nFn*nsd,lM%nNo)
-      REAL(KIND=RKIND), INTENT(IN) :: lD(tDof,tnNo)
-
-      END SUBROUTINE GRPOST
