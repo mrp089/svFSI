@@ -51,9 +51,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	Example example = aneurysm;
 	const bool example_asym = true;
 	
-	// double KsKi = 0.35;
+	double KsKi = 0.35;
 	// double KsKi = 0.0;
-	double KsKi = 1.0;
+	// double KsKi = 1.0;
 
 	const double curve = 0.0;
 
@@ -79,7 +79,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 11;
+	const int n_t_end = 1001;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -169,16 +169,25 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	const double EPS  = 1.0+(1.0-1.0)*f_time;
 
-	double KfKi   = 1.0;
+	double KfKi   = 0.0;
 	const double inflam = 0.0*f_time;
 
-	double aexp = 1.0;									// 1.0 (KNOCKOUTS | TEVG) | 0.0 (CMAME | TORTUOSITY)
+	double aexp = 0.0;									// 1.0 (KNOCKOUTS | TEVG) | 0.0 (CMAME | TORTUOSITY)
 
 	const double delta = 0.0;
 
 	// hyperelastic incompressibility
-	const double Jdep = 0.999999;
-	const double lm = 1.0e5*mu;
+	const double Jdep = 0.999;
+	const double lm = 1.0e3*mu;
+
+	// Lagrange multiplier
+	double p;
+
+	// WSS ratio
+	double tau_ratio;
+
+	// intramural stress
+	double svh;
 
 	// todo: do outside and once per time step
 	// select G&R mode
@@ -205,23 +214,23 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double z_om = lo/2.0;
 
 		double theta_od;
-		double phi_e_hm = 0.35;
-		const int vza = 2;
+		double phi_e_hm = 0.65;
+		const int vza = 5;
 		int vzc;
-		const double z_od = lo/4.0/mult;
+		const double z_od = lo/3.0/mult;
 		double nc;
 		if (example_asym)
 		{
 			// 8d
 //			z_od = lo/3.0/mult;
 //			vz = 5;
-//			theta_od = 3.0;
+			theta_od = M_PI/3.0;
 
 			// z_od = lo/4.0/mult;
 			// theta_od = 0.9;
 			// vza = 4;
-			vzc = 2;
-			nc = 5.0;
+			vzc = 5;
+			// nc = 5.0;
 		}
 		else
 		{
@@ -236,12 +245,12 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// azimuth factor (0, 1]
 		double f_cir = 1.0;
 		if (example_asym)
-			// f_cir = (nc + exp(-pow(abs((azimuth - M_PI) / (M_PI * theta_od)), vzc))) / (1.0 + nc);
+			f_cir = exp(-pow(abs((azimuth - M_PI) / (theta_od)), vzc));
 			// f_cir = (nc + cos(azimuth - M_PI)) / (1.0 + nc);
-			f_cir = (nc + (1.0 + cos(pow(azimuth / M_PI - 1.0, vzc) * M_PI)) / 2.0) / (1.0 + nc);
+			// f_cir = (nc + (1.0 + cos(pow(azimuth / M_PI - 1.0, vzc) * M_PI)) / 2.0) / (1.0 + nc);
 
 		mu   *= 1.0 - f_time * f_axi * f_cir * phi_e_hm;
-		KsKi *= 1.0 - f_time * f_axi * f_cir;
+		KsKi *= 1.0 - f_time * f_axi;
 	}
 
 	if (example == tortuosity){
@@ -334,7 +343,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	double   Jo;
 	double   Jh;
 	double  svo;
-	double  svh;
+	// double  svh;
 	double phic;
 	double phich;
 	double tauo;
@@ -516,7 +525,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		const double rIrIo = ro/rIo*lt-(ro-rIo)/rIo*lr;				// rIrIo -> rIorIo = 1 for F -> Fo
 
-		double tau_ratio;
 		if (coup_wss)
 			tau_ratio = tau/tauo;
 		else
@@ -543,9 +551,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// todo: extract wss from Sx
 		// todo: solve for p with local newton??
 
-
+		svh = 1.0/3.0/J*Sx.dotdot(C);
 //		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
-		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
+		p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
 
 		S = Sx - J*p*Ci;
 
@@ -791,31 +799,37 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// store g&r state
 	if (mode == gr)
 	{
-		Fih = F.inverse();
-
 		grInt[25] = J;
-		grInt[26] = svo;
+		grInt[26] = 1.0/3.0/J*S.dotdot(C);
 		grInt[27] = phico;
-		grInt[28] = tau;
-		int k = 29;
-		for (int i=0; i<3; i++)
-			for (int j=i; j<3; j++)
-			{
-				grInt[k] = smo(i,j);
-				k++;
-			}
-		for (int i=0; i<3; i++)
-			for (int j=i; j<3; j++)
-			{
-				grInt[k] = sco(i,j);
-				k++;
-			}
-		for (int i=0; i<3; i++)
-			for (int j=0; j<3; j++)
-			{
-				grInt[k] = Fih(i,j);
-				k++;
-			}
+		grInt[28] = tau_ratio;
+		grInt[29] = p;
+		grInt[30] = grInt[28] - 1.0;
+		grInt[31] = grInt[26] / grInt[1] - 1.0;
+		grInt[32] = grInt[31] / grInt[30];
+		// Fih = F.inverse();
+		// grInt[25] = J;
+		// grInt[26] = svo;
+		// grInt[27] = phico;
+		// int k = 29;
+		// for (int i=0; i<3; i++)
+		// 	for (int j=i; j<3; j++)
+		// 	{
+		// 		grInt[k] = smo(i,j);
+		// 		k++;
+		// 	}
+		// for (int i=0; i<3; i++)
+		// 	for (int j=i; j<3; j++)
+		// 	{
+		// 		grInt[k] = sco(i,j);
+		// 		k++;
+		// 	}
+		// for (int i=0; i<3; i++)
+		// 	for (int j=0; j<3; j++)
+		// 	{
+		// 		grInt[k] = Fih(i,j);
+		// 		k++;
+		// 	}
 	}
 }
 
