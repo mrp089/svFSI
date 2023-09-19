@@ -253,6 +253,8 @@
 
 !        Writing out the time passed, residual, and etc.
             IF (ALL(eq%ok)) EXIT
+            ! output every Newton iteration
+            ! CALL WRITEVTUS(An, Yn, Dn, .FALSE.)
             CALL OUTRESULT(timeP, 2, iEqOld)
          END DO
 !     End of inner loop

@@ -729,6 +729,8 @@
       IF (cTS.GE.1000 .OR. lAve) THEN
          fName = STR(cTS)
       ELSE
+         ! When writing every Newton iteration
+         ! WRITE(fName,'(I3.3)') cTS*100+eq(1)%itr
          WRITE(fName,'(I3.3)') cTS
       END IF
 
