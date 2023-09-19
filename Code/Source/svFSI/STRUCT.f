@@ -50,7 +50,7 @@
       INTEGER(KIND=IKIND), ALLOCATABLE :: ptr(:)
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
      2   dl(:,:), bfl(:,:), fN(:,:), pS0l(:,:), pSl(:), ya_l(:), N(:),
-     3   Nx(:,:), lR(:,:), lK(:,:,:), lVWP(:,:), lRtau(:,:)
+     3   Nx(:,:), lR(:,:), lK(:,:,:), lVWP(:,:)
 
       eNoN = lM%eNoN
       nFn  = lM%nFn
@@ -60,7 +60,7 @@
       ALLOCATE(ptr(eNoN), xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
      2   dl(tDof,eNoN), bfl(nsd,eNoN), fN(nsd,nFn), pS0l(nsymd,eNoN),
      3   pSl(nsymd), ya_l(eNoN), N(eNoN), Nx(nsd,eNoN), lR(dof,eNoN),
-     4   lK(dof*dof,eNoN,eNoN), lVWP(nvwp,eNoN), lRtau(dof,eNoN))
+     4   lK(dof*dof,eNoN,eNoN), lVWP(nvwp,eNoN))
 
 
 !     Loop over all elements of mesh
@@ -112,7 +112,7 @@
 
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
      2   dl(:,:), bfl(:,:), fN(:,:), pS0l(:,:), pSl(:), ya_l(:), N(:),
-     3   Nx(:,:), lVWP(:,:), lRtau(:,:)
+     3   Nx(:,:), lVWP(:,:)
 
       eNoN = lM%eNoN
       nFn  = lM%nFn
@@ -122,7 +122,7 @@
       ALLOCATE(xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
      2   dl(tDof,eNoN), bfl(nsd,eNoN), fN(nsd,nFn), pS0l(nsymd,eNoN),
      3   pSl(nsymd), ya_l(eNoN), N(eNoN), Nx(nsd,eNoN),
-     4   lVWP(nvwp,eNoN), lRtau(dof,eNoN))
+     4   lVWP(nvwp,eNoN))
 
 !        Create local copies
          fN   = 0._RKIND
@@ -168,7 +168,7 @@
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
                CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, lRtau)
+     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
@@ -292,7 +292,7 @@
 
 !####################################################################
       SUBROUTINE STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP, lRtau)
+     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
@@ -302,7 +302,7 @@
      3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN)
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(6)
       REAL(KIND=RKIND), INTENT(INOUT) :: grInt(nGrInt), lR(dof,eNoN),
-     2   lK(dof*dof,eNoN,eNoN), lRtau(dof,eNoN)
+     2   lK(dof*dof,eNoN,eNoN)
 
       INTEGER(KIND=IKIND) :: a, b, i, j, k, ii, jj, dd
       REAL(KIND=RKIND) :: rho, dmp, T1, amd, afl, ya_g, fb(3), ud(3),
@@ -419,14 +419,6 @@
      2      Nx(2,a)*P(2,2) + Nx(3,a)*P(2,3))
          lR(3,a) = lR(3,a) + w*(N(a)*ud(3) + Nx(1,a)*P(3,1) +
      2      Nx(2,a)*P(3,2) + Nx(3,a)*P(3,3))
-
-!         DO ii=1,3
-!            NxP = 0._RKIND
-!            DO jj=1,3
-!               NxP = NxP + Ptau(ii,jj) * Nx(jj,a)
-!            END DO
-!            lRtau(ii,a) = lRtau(ii,a) + w * NxP
-!         END DO
 
          DO b=1, eNoN
 !           Geometric stiffness
