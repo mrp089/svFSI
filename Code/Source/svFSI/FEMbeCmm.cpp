@@ -79,7 +79,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 101;
+	const int n_t_end = 1001;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -130,6 +130,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	double phieo = 0.34;								// 0.34 (CMAME | KNOCKOUTS) | 1.00 (TEVG) | 1.0/3.0 (TEVG)
 	double phimo = 0.5*(1.0-phieo);
 	double phico = 0.5*(1.0-phieo);
+	double J_star = 1.0;
 
 	const double eta = 1.0;									// 1.0 | 1.0/3.0 (for uniform cases) | 0.714
 
@@ -179,15 +180,20 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// hyperelastic incompressibility
 	const double Jdep = 0.999;
 	const double lm = 1.0e3*mu;
+	const double kappa = 1.0e0 * mu;
 
 	// Lagrange multiplier
 	double p;
+	double p0;
 
 	// WSS ratio
 	double tau_ratio;
 
 	// intramural stress
 	double svh;
+
+	// stimulus residual
+	double ups = 0.0;
 
 	// todo: do outside and once per time step
 	// select G&R mode
@@ -344,10 +350,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	double   Jh;
 	double  svo;
 	// double  svh;
-	double phic;
+	double phic = phico;
 	double phich;
 	double tauo;
 	double tauh;
+	double po;
 	mat3ds  smo;
 	mat3ds  smh;
 	mat3ds  sco;
@@ -362,7 +369,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		svo  = grInt[1];
 		phic = grInt[2];
 		tauo = grInt[3];
-		int k = 4;
+		po   = grInt[4];
+		int k = 5;
 		for (int i=0; i<3; i++)
 			for (int j=i; j<3; j++)
 			{
@@ -440,6 +448,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		const mat3ds Sx = Se + phimo * Sm + phico * Sc + phimo * Sa;
 
+		// Lagrange multiplier during prestress
+		po = -lm*log(Jdep*J);
+
 		S = Sx + Ci*lm*log(Jdep*J);
 
 		// compute tangent
@@ -481,6 +492,19 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		phic = phic-Rphi/dRdc;														// converge phase -> phic (updated in material point memory)
 
 		const double phim = phimo/(J/Jo)*pow(J/Jo*phic/phico,eta);	// phim from <J*phim/phimo=(J*phic/phico)^eta>
+
+		// assume eta = 1
+		const double phic0 = (1.0 - Jo/J * phieo) / (1.0 + phimo / phico);
+		const double phim0 = (1.0 - Jo/J * phieo) / (1.0 + phico / phimo);
+
+		// Jacobian from mass fractions
+		J_star = Jo * phieo / (1.0 - phic - phim);
+
+		// unneccessary linearizations of J
+		// const double Ja =  Jo * phieo;
+		// const double Jb =  1.0 / (1.0 + phimo / phico) + 1.0 / (1.0 + phico / phimo);
+		// const double J_star0 = Ja / (1.0 - (1.0 - Ja/J) * Jb);
+		// const double dJ_star_dJ = pow(J_star0, 2) * Jb / pow(J, 2);
 
 		// recompute remodeled original stresses for smc and collagen (from remodeled natural configurations)
 
@@ -547,17 +571,6 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const mat3ds Sa = J*(ui*sNa*ui).sym();						// J*Ui*sNa*Ui
 
 		const mat3ds Sx = Se + Sf + Sa;
-
-		// todo: extract wss from Sx
-		// todo: solve for p with local newton??
-
-		svh = 1.0/3.0/J*Sx.dotdot(C);
-//		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
-		p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
-
-		S = Sx - J*p*Ci;
-
-		// compute tangent
 
 		// compute current stresses
 		sNm = smo;										// phim*smhato = phim*smo
@@ -656,10 +669,41 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		const tens4dmm cess = tens4dmm(ce);							// ce in tens4dmm form
 
+//		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
 		css = cess + cfss + cpnss;
+		tens4dmm css_ref = J*css.pp(F.inverse());
+
+		svh = 1.0/3.0/J*Sx.dotdot(C);
+
+		const double delta_sig = svh / svo - 1.0;
+		const double delta_tau = tau_ratio - 1.0;
+		ups = delta_sig - KsKi * delta_tau;
+		p0 = kappa*ups;
+
+		const mat3ds d_svh = 1.0/3.0/J/svo * (Sx + css_ref.dot(C) - Sx.dotdot(C)/2.0 * Ci);
+		// const mat3ds d_svh = (1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))).dot(C)/svo;
+		const mat3ds d_tau = -3.0/2.0*pow(rIrIo,-4) * (ro/rIo/lt*tent - (ro-rIo)/rIo/lr*tenr);
+		const mat3ds Sp = 2.0*kappa*ups * (d_svh - KsKi * d_tau);
+
+//		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
+		p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
+		// p = po;
+		// p = po - kappa * (J - J_star) * (1 - dJ_star_dJ); // second part is always 0
+		// p = po + svh;
+
+		S = Sx - J*p*Ci;
+		// S = Sx + Sp;
+		// S = Sx * svo/svh;
+		// S = Sx - kappa*ups * J*Ci;
+		// S = Sx + Ci*lm*log(Jdep*(ups + 1.0));
+
+		// const double a = 1.0e-2;
+		// const double a = 0.0;
+		// S = Sx * (1+a) - (svh * (1+a) - svo * (1.0+KsKi*(tau_ratio-1.0))) * J*Ci;
+
 		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css));
 		css += svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss);
-
+	
 		// wss linearization
 		if (!coup_wss)
 		{
@@ -775,7 +819,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		grInt[1] = svo;
 		grInt[2] = phic;
 		grInt[3] = tau;
-		int k = 4;
+		grInt[4] = po;
+		int k = 5;
 		for (int i=0; i<3; i++)
 			for (int j=i; j<3; j++)
 			{
@@ -808,14 +853,19 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	// store g&r state
 	if (mode == gr)
 	{
-		grInt[25] = J;
-		grInt[26] = 1.0/3.0/J*S.dotdot(C);
-		grInt[27] = phico;
-		grInt[28] = tau_ratio;
-		grInt[29] = p;
-		grInt[30] = grInt[28] - 1.0;
-		grInt[31] = grInt[26] / grInt[1] - 1.0;
-		grInt[32] = grInt[31] / grInt[30];
+		int k = 26;
+		grInt[k]      = J;
+		grInt[k + 1]  = 1.0/3.0/J*S.dotdot(C);
+		grInt[k + 2]  = phico;
+		grInt[k + 3]  = tau_ratio;
+		grInt[k + 4]  = p;
+		grInt[k + 5]  = grInt[k + 3] - 1.0; // delta tau
+		grInt[k + 6]  = grInt[k + 1] / grInt[1] - 1.0; // delta sigma
+		grInt[k + 7]  = grInt[k + 6] / grInt[k + 5]; // kski = delta sigma / deltau tau
+		grInt[k + 8]  = grInt[k + 6] - KsKi * grInt[k + 5]; // ups -> 0
+		grInt[k + 9]  = p0;
+		grInt[k + 10] = p0 / p;
+		grInt[k + 11] = phic;
 		// Fih = F.inverse();
 		// grInt[25] = J;
 		// grInt[26] = svo;

@@ -73,8 +73,8 @@
 !        Update shape functions for NURBS
          IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, e)
 
-!         CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
-         CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+        CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+         ! CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
 
 !        Assembly
 #ifdef WITH_TRILINOS
