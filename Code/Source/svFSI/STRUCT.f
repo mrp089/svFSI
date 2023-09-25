@@ -103,7 +103,7 @@
      2   Dg(tDof,tnNo)
 
       INTEGER(KIND=IKIND) a, e, g, Ac, eNoN, cPhys, iFn, nFn
-      REAL(KIND=RKIND) w, Jac, grInt(nGrInt), ksix(nsd,nsd)
+      REAL(KIND=RKIND) w, Jac, grInt(nGrInt), ksix(nsd,nsd), p_equi
 
       REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,lM%eNoN),
      2   lK(dof*dof,lM%eNoN,lM%eNoN)
@@ -165,10 +165,16 @@
             grInt(:) = 0._RKIND
             IF (ALLOCATED(lM%grVn)) grInt(1:nGrInt) = lM%grVo(:,g,e)
 
+            IF (g.EQ.1) THEN
+              p_equi = 0._RKIND
+            ELSE
+              p_equi = lM%grVo(31,1,e)
+            END IF
+
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
                CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
+     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, g, p_equi)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
@@ -292,14 +298,14 @@
 
 !####################################################################
       SUBROUTINE STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
+     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP, g, p_equi)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
-      INTEGER(KIND=IKIND), INTENT(IN) :: eNoN, nFn
+      INTEGER(KIND=IKIND), INTENT(IN) :: eNoN, nFn, g
       REAL(KIND=RKIND), INTENT(IN) :: w, N(eNoN), Nx(3,eNoN),
      2   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN),
-     3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN)
+     3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN), p_equi
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(6)
       REAL(KIND=RKIND), INTENT(INOUT) :: grInt(nGrInt), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
@@ -367,7 +373,7 @@
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
       CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
-     2              eVWP)
+     2              eVWP, g)
 
 !     Prestress
       pSl(1) = S(1,1)
