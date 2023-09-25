@@ -307,8 +307,7 @@
       INTEGER(KIND=IKIND) :: a, b, i, j, k, ii, jj, dd
       REAL(KIND=RKIND) :: rho, dmp, T1, amd, afl, ya_g, fb(3), ud(3),
      2   NxSNx, BmDBm, F(3,3), S(3,3), P(3,3), Dm(6,6), DBm(6,3),
-     3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp), Stau(3,3), Ptau(3,3),
-     4   dwss(3,eNoN), NxP
+     3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp)
 
 !     Define parameters
       rho     = eq(cEq)%dmn(cDmn)%prop(solid_density)
@@ -365,12 +364,10 @@
       S0(3,2) = S0(2,3)
       S0(1,3) = S0(3,1)
 
-      dwss = lVWP(10:12,:)
-
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
       CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
-     2              eVWP, Stau)
+     2              eVWP)
 
 !     Prestress
       pSl(1) = S(1,1)
@@ -383,7 +380,6 @@
 
 !     1st Piola-Kirchhoff tensor (P)
       P    = MATMUL(F, S)
-      Ptau = MATMUL(F, Stau)
 
       DO a=1, eNoN
          Bm(1,1,a) = Nx(1,a)*F(1,1)
