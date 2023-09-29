@@ -23,7 +23,7 @@
 extern"C"
 {
 
-void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out, int* gp)
+void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out, int* gp, double* p_equi)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
@@ -79,7 +79,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 1001;
+	const int n_t_end = 11;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -183,7 +183,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const double kappa = 1.0e0 * mu;
 
 	// Lagrange multiplier
-	double p;
+	double p = 0.0;
 	double p0;
 
 	// WSS ratio
@@ -343,6 +343,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// computation of spatial moduli
 	tens4dmm css;
+	tens4dmm css_x;
 	mat3ds sfpro;
 
 	// retrieve internal variables 2*(1+1+1+1+6+6+9) = 50
@@ -424,6 +425,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	{
 	case prestress:
 	{
+		// no second integration in prestress
+		if(*gp == 1)
+			return;
+
 		// compute stress
 		const double lt = (F*N[1]).norm();
 		const double lz = (F*N[2]).norm();
@@ -669,9 +674,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		const tens4dmm cess = tens4dmm(ce);							// ce in tens4dmm form
 
-//		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
-		css = cess + cfss + cpnss;
-		tens4dmm css_ref = J*css.pp(F.inverse());
+		css_x = cess + cfss + cpnss;
 
 		svh = 1.0/3.0/J*Sx.dotdot(C);
 
@@ -680,36 +683,28 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		ups = delta_sig - KsKi * delta_tau;
 		p0 = kappa*ups;
 
-		const mat3ds d_svh = 1.0/3.0/J/svo * (Sx + css_ref.dot(C) - Sx.dotdot(C)/2.0 * Ci);
-		// const mat3ds d_svh = (1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))).dot(C)/svo;
-		const mat3ds d_tau = -3.0/2.0*pow(rIrIo,-4) * (ro/rIo/lt*tent - (ro-rIo)/rIo/lr*tenr);
-		const mat3ds Sp = 2.0*kappa*ups * (d_svh - KsKi * d_tau);
-
-//		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
-		p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
-		// p = po;
-		// p = po - kappa * (J - J_star) * (1 - dJ_star_dJ); // second part is always 0
-		// p = po + svh;
-
-		S = Sx - J*p*Ci;
-		// S = Sx + Sp;
-		// S = Sx * svo/svh;
-		// S = Sx - kappa*ups * J*Ci;
-		// S = Sx + Ci*lm*log(Jdep*(ups + 1.0));
-
-		// const double a = 1.0e-2;
-		// const double a = 0.0;
-		// S = Sx * (1+a) - (svh * (1+a) - svo * (1.0+KsKi*(tau_ratio-1.0))) * J*Ci;
-
-		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css));
-		css += svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss);
-	
-		// wss linearization
-		if (!coup_wss)
+		if(*gp == 0)
 		{
-			css += 3.0 * pow(rIrIo,-4) * phim * 2.0 * Cratio * CS * EPS * exp(-Cratio * Cratio) / (1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
-			css -= 3.0 * pow(rIrIo,-4) * svo/(1.0-delta) * KsKi * EPS                                               * (ro/rIo/lt*Ixntt  -(ro-rIo)/rIo/lr*Ixnrr);
+			S = Sx;
+			css = css_x;
 		}
+		else
+		{
+			if(*gp == 1)
+				p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
+			else if(*gp == 2)
+				p = grInt[30];
+			S = - J*p*Ci;
+			css = 2.0 * p * IoIss;
+			css += - 2.0/3.0 * Ixsx - 1.0/3.0 * ddot(IxIss,css_x);
+			css += svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss);
+			if (!coup_wss)
+			{
+				css += 3.0 * pow(rIrIo,-4) * phim * 2.0 * Cratio * CS * EPS * exp(-Cratio * Cratio) / (1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
+				css -= 3.0 * pow(rIrIo,-4) * svo/(1.0-delta) * KsKi * EPS                                               * (ro/rIo/lt*Ixntt  -(ro-rIo)/rIo/lr*Ixnrr);
+			}
+		}
+	    // std::cout<<*gp<<" "<<p<<std::endl;
 
 		break;
 	}
@@ -854,41 +849,46 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	if (mode == gr)
 	{
 		int k = 26;
-		grInt[k]      = J;
-		grInt[k + 1]  = 1.0/3.0/J*S.dotdot(C);
-		grInt[k + 2]  = phico;
-		grInt[k + 3]  = tau_ratio;
-		grInt[k + 4]  = p;
-		grInt[k + 5]  = grInt[k + 3] - 1.0; // delta tau
-		grInt[k + 6]  = grInt[k + 1] / grInt[1] - 1.0; // delta sigma
-		grInt[k + 7]  = grInt[k + 6] / grInt[k + 5]; // kski = delta sigma / deltau tau
-		grInt[k + 8]  = grInt[k + 6] - KsKi * grInt[k + 5]; // ups -> 0
-		grInt[k + 9]  = p0;
-		grInt[k + 10] = p0 / p;
-		grInt[k + 11] = phic;
-		// Fih = F.inverse();
-		// grInt[25] = J;
-		// grInt[26] = svo;
-		// grInt[27] = phico;
-		// int k = 29;
-		// for (int i=0; i<3; i++)
-		// 	for (int j=i; j<3; j++)
-		// 	{
-		// 		grInt[k] = smo(i,j);
-		// 		k++;
-		// 	}
-		// for (int i=0; i<3; i++)
-		// 	for (int j=i; j<3; j++)
-		// 	{
-		// 		grInt[k] = sco(i,j);
-		// 		k++;
-		// 	}
-		// for (int i=0; i<3; i++)
-		// 	for (int j=0; j<3; j++)
-		// 	{
-		// 		grInt[k] = Fih(i,j);
-		// 		k++;
-		// 	}
+		if (*gp == 0)
+		{
+			grInt[k]      = J;
+			grInt[k + 1]  = 1.0/3.0/J*S.dotdot(C);
+			grInt[k + 2]  = phico;
+			grInt[k + 3]  = tau_ratio;
+			grInt[k + 4]  = p;
+			grInt[k + 5]  = grInt[k + 3] - 1.0; // delta tau
+			grInt[k + 6]  = grInt[k + 1] / grInt[1] - 1.0; // delta sigma
+			grInt[k + 7]  = grInt[k + 6] / grInt[k + 5]; // kski = delta sigma / deltau tau
+			grInt[k + 8]  = grInt[k + 6] - KsKi * grInt[k + 5]; // ups -> 0
+			grInt[k + 9]  = p0;
+			grInt[k + 10] = p0 / p;
+			grInt[k + 11] = phic;
+			// Fih = F.inverse();
+			// grInt[25] = J;
+			// grInt[26] = svo;
+			// grInt[27] = phico;
+			// int k = 29;
+			// for (int i=0; i<3; i++)
+			// 	for (int j=i; j<3; j++)
+			// 	{
+			// 		grInt[k] = smo(i,j);
+			// 		k++;
+			// 	}
+			// for (int i=0; i<3; i++)
+			// 	for (int j=i; j<3; j++)
+			// 	{
+			// 		grInt[k] = sco(i,j);
+			// 		k++;
+			// 	}
+			// for (int i=0; i<3; i++)
+			// 	for (int j=0; j<3; j++)
+			// 	{
+			// 		grInt[k] = Fih(i,j);
+			// 		k++;
+			// 	}
+		}
+		else
+			grInt[k + 4]  = p;
 	}
 }
 
