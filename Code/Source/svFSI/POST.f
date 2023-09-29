@@ -850,7 +850,7 @@
                END IF
             CASE (outGrp_GR)
                CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
-     2               grInt, S, Dm, eVWP, 2, 0._RKIND)
+     2               grInt, S, Dm, eVWP, Stau)
                resl = grInt
             END SELECT
 

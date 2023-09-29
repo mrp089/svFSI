@@ -74,7 +74,7 @@
          IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, e)
 
         CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
-      !    CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+         ! CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
 
 !        Assembly
 #ifdef WITH_TRILINOS
@@ -112,8 +112,7 @@
 
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
      2   dl(:,:), bfl(:,:), fN(:,:), pS0l(:,:), pSl(:), ya_l(:), N(:),
-     3   Nx(:,:), lVWP(:,:), 
-     4   xl_center(:), xl_mean(:,:), N_mean(:), Nx_mean(:,:)
+     3   Nx(:,:), lVWP(:,:)
 
       eNoN = lM%eNoN
       nFn  = lM%nFn
@@ -123,9 +122,7 @@
       ALLOCATE(xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
      2   dl(tDof,eNoN), bfl(nsd,eNoN), fN(nsd,nFn), pS0l(nsymd,eNoN),
      3   pSl(nsymd), ya_l(eNoN), N(eNoN), Nx(nsd,eNoN),
-     4   lVWP(nvwp,eNoN), 
-     5   xl_center(nsd), xl_mean(nsd,eNoN), N_mean(eNoN),
-     6   Nx_mean(nsd,eNoN))
+     4   lVWP(nvwp,eNoN))
 
 !        Create local copies
          fN   = 0._RKIND
@@ -153,12 +150,9 @@
             IF (cem%cpld) ya_l(a) = cem%Ya(Ac)
          END DO
 
-!        First Gauss integration
+!        Gauss integration
          lR = 0._RKIND
          lK = 0._RKIND
-         p_equi = 0._RKIND
-         N_mean = 0._RKIND
-         Nx_mean = 0._RKIND
          DO g=1, lM%nG
             IF (g.EQ.1 .OR. .NOT.lM%lShpF) THEN
                CALL GNN(eNoN, nsd, lM%Nx(:,:,g), xl, Nx, Jac, ksix)
@@ -167,20 +161,20 @@
             w = lM%w(g) * Jac
             N = lM%N(:,g)
 
-!           Average over all Gaus points
-            N_mean = N_mean + N / lM%nG
-            Nx_mean = Nx_mean + Nx / lM%nG
-
 !           retrieve g&r internal variables
             grInt(:) = 0._RKIND
             IF (ALLOCATED(lM%grVn)) grInt(1:nGrInt) = lM%grVo(:,g,e)
 
+            IF (g.EQ.1) THEN
+              p_equi = 0._RKIND
+            ELSE
+              p_equi = lM%grVo(31,1,e)
+            END IF
+
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
                CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, 0, p_equi)
-!                CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-!      2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, 1, p_equi)
+     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, g, p_equi)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
@@ -198,29 +192,10 @@
             END IF
 
 !           Update g&r variables
-            p_equi = p_equi + lM%grVo(31,g,e) / lM%nG
             IF (ALLOCATED(lM%grVn)) lM%grVo(:,g,e) = grInt(1:nGrInt)
             IF (ALLOCATED(lM%grVn)) lM%grVn(:,g,e) = grInt(1:nGrInt)
 
          END DO ! g: loop
-
-!     Second Gauss integration with element-averaged shape function values
-      IF (ALLOCATED(lM%grVn)) THEN
-         DO g=1, lM%nG
-            IF (g.EQ.1 .OR. .NOT.lM%lShpF) THEN
-               CALL GNN(eNoN, nsd, lM%Nx(:,:,g), xl, Nx, Jac, ksix)
-               IF (ISZERO(Jac)) err = "Jac < 0 @ element "//e
-            END IF
-            w = lM%w(g) * Jac
-
-            CALL STRUCT3D(eNoN, nFn, w, N_mean, Nx_mean, al, yl, dl,
-     2      bfl, fN, pS0l, pSl, ya_l, lR, lK, grInt, lVWP, 1, p_equi)
-
-!           Update G&R variables
-            lM%grVo(:,g,e) = grInt(1:nGrInt)
-            lM%grVn(:,g,e) = grInt(1:nGrInt)
-         END DO
-      END IF
 
 !     ptr, lR, lK,
       DEALLOCATE(xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, N, Nx, lVWP)
@@ -398,7 +373,7 @@
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
       CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
-     2              eVWP, g, p_equi)
+     2              eVWP, g)
 
 !     Prestress
       pSl(1) = S(1,1)
