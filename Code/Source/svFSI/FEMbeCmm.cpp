@@ -79,7 +79,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 1001;
+	const int n_t_end = 101;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -841,14 +841,19 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 			}
 		// grInt[28] = tau;
 		
-		grInt[25] = J;
-		grInt[26] = 1.0/3.0/J*S.dotdot(C);
-		grInt[27] = phico;
-		grInt[28] = 1.0;
-		grInt[29] = p;
-		grInt[30] = grInt[28] - 1.0;
-		grInt[31] = grInt[26] / grInt[1] - 1.0;
-		grInt[32] = grInt[31] / grInt[30];
+		k = 26;
+		grInt[k]      = J;
+		grInt[k + 1]  = 1.0/3.0/J*S.dotdot(C);
+		grInt[k + 2]  = phico;
+		grInt[k + 3]  = 1.0;
+		grInt[k + 4]  = p;
+		grInt[k + 5]  = grInt[k + 3] - 1.0; // delta tau
+		grInt[k + 6]  = grInt[k + 1] / grInt[1] - 1.0; // delta sigma
+		grInt[k + 7]  = KsKi; // kski = delta sigma / deltau tau
+		grInt[k + 8]  = grInt[k + 6] - KsKi * grInt[k + 5]; // ups -> 0
+		grInt[k + 9]  = p0;
+		grInt[k + 10] = p0 / p;
+		grInt[k + 11] = phic;
 	}
 	// store g&r state
 	if (mode == gr)
