@@ -211,7 +211,8 @@
          DO Ac=1, tnNo
             IF (ISDOMAIN(cEq, Ac, phys_struct) .OR.
      2          ISDOMAIN(cEq, Ac, phys_ustruct) .OR.
-     3          ISDOMAIN(cEq, Ac, phys_lElas)) THEN
+     3          ISDOMAIN(cEq, Ac, phys_lElas) .OR.
+     4          ISDOMAIN(cEq, Ac, phys_gr)) THEN
                An(s:e,Ac) = An(1:nsd,Ac)
                Yn(s:e,Ac) = Yn(1:nsd,Ac)
                Dn(s:e,Ac) = Dn(1:nsd,Ac)

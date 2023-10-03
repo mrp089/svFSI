@@ -127,6 +127,11 @@
          CASE (phys_stokes)
             eq(iEq)%dof = nsd + 1
             eq(iEq)%sym = 'SS'
+         CASE (phys_gr)
+            dFlag = .TRUE.
+            eq(iEq)%dof = nsd
+            eq(iEq)%am  = am
+            eq(iEq)%sym = 'GR'
          CASE DEFAULT
             err = "Equation type "//eq(iEq)%sym//" is not defined"
          END SELECT

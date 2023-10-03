@@ -550,6 +550,46 @@
 
          CALL READLS(lSolver_CG, lEq, list)
 
+!     STRUCTURAL with nonlinear displacement equation solver---------
+      CASE ('gr')
+         lEq%phys = phys_gr
+
+         propL(1,1) = solid_density
+         propL(2,1) = damping
+         propL(3,1) = elasticity_modulus
+         propL(4,1) = poisson_ratio
+         propL(5,1) = f_x
+         propL(6,1) = f_y
+         IF (nsd .EQ. 3) propL(7,1) = f_z
+         CALL READDOMAIN(lEq, propL, list)
+
+         lPtr => list%get(pstEq, "Prestress")
+
+         IF (pstEq) THEN
+            nDOP = (/4,2,0,0/)
+            outPuts(1)  = out_displacement
+            outPuts(2)  = out_stress
+            outPuts(3)  = out_cauchy
+            outPuts(4)  = out_strain
+         ELSE
+            nDOP = (/13,2,0,0/)
+            outPuts(1)  = out_displacement
+            outPuts(2)  = out_mises
+            outPuts(3)  = out_stress
+            outPuts(4)  = out_cauchy
+            outPuts(5)  = out_strain
+            outPuts(6)  = out_jacobian
+            outPuts(7)  = out_defGrad
+            outPuts(8)  = out_integ
+            outPuts(9)  = out_fibDir
+            outPuts(10) = out_fibAlign
+            outPuts(11) = out_velocity
+            outPuts(12) = out_acceleration
+            outPuts(13) = out_gr
+         END IF
+
+         CALL READLS(lSolver_CG, lEq, list)
+
 !     STRUCTURAL with nonlinear velocity-pressure based equation solver
       CASE ('ustruct')
          lEq%phys = phys_ustruct
@@ -1009,9 +1049,11 @@
                IF (.NOT.sstEq) sstEq = .TRUE.
             CASE("lElas")
                lEq%dmn(iDmn)%phys = phys_lElas
+            CASE("gr")
+               lEq%dmn(iDmn)%phys = phys_gr
             CASE DEFAULT
                err = TRIM(lPD%ping("Equation",lPtr))//
-     2            "Equation must be fluid/struct/ustruct/lElas"
+     2            "Equation must be fluid/struct/ustruct/lElas/gr"
             END SELECT
          ELSE
             lEq%dmn(iDmn)%phys = lEq%phys
@@ -1081,7 +1123,8 @@
          END IF
 
          IF (lEq%dmn(iDmn)%phys.EQ.phys_struct  .OR.
-     2       lEq%dmn(iDmn)%phys.EQ.phys_ustruct) THEN
+     2       lEq%dmn(iDmn)%phys.EQ.phys_ustruct .OR.
+     3       lEq%dmn(iDmn)%phys.EQ.phys_gr) THEN
             CALL READMATMODEL(lEq%dmn(iDmn), lPD)
             IF (ISZERO(lEq%dmn(iDmn)%stM%Kpen) .AND.
      2          lEq%dmn(iDmn)%phys .EQ. phys_struct) THEN
@@ -1806,7 +1849,8 @@
 !     Impose BC on the state variable or its integral
       ltmp = .FALSE.
       IF (phys.EQ.phys_lElas .OR. phys.EQ.phys_mesh .OR.
-     2    phys.EQ.phys_struct .OR. phys.EQ.phys_shell) ltmp = .TRUE.
+     2    phys.EQ.phys_struct .OR. phys.EQ.phys_shell .OR.
+     3    phys.EQ.phys_gr) ltmp = .TRUE.
       lPtr => list%get(ltmp,"Impose on state variable integral")
       lBc%bType = IBCLR(lBc%bType,bType_impD)
       IF (ltmp) lBc%bType = IBSET(lBc%bType,bType_impD)
@@ -1905,7 +1949,8 @@ c     2         "can be applied for Neumann boundaries only"
 !     (follower pressure)
       lBc%flwP = .FALSE.
       IF (BTEST(lBc%bType,bType_Neu)) THEN
-         IF (phys.EQ.phys_struct .OR. phys.EQ.phys_ustruct) THEN
+         IF (phys.EQ.phys_struct .OR. phys.EQ.phys_ustruct .OR.
+     2       phys.EQ.phys_gr) THEN
             lPtr => list%get(lBc%flwP, "Follower pressure load")
          END IF
       END  IF

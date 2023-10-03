@@ -68,7 +68,8 @@
 !        Update domain and proceed if domain phys and eqn phys match
          cDmn  = DOMAIN(lM, cEq, e)
          cPhys = eq(cEq)%dmn(cDmn)%phys
-         IF (cPhys .NE. phys_struct) CYCLE
+         IF (cPhys .NE. phys_struct .AND.
+     2       cPhys .NE. phys_gr) CYCLE
 
 !        Update shape functions for NURBS
          IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, e)

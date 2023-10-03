@@ -617,7 +617,8 @@
          cPhys = eq(iEq)%dmn(cDmn)%phys
          IF (cPhys .NE. phys_struct .AND.
      2       cPhys .NE. phys_ustruct .AND.
-     3       cPhys .NE. phys_lElas) CYCLE
+     3       cPhys .NE. phys_lElas .AND.
+     4       cPhys .NE. phys_gr) CYCLE
 
          IF (cPhys .EQ. phys_lElas) THEN
             elM = eq(iEq)%dmn(cDmn)%prop(elasticity_modulus)
@@ -799,7 +800,8 @@
                   sigma = MATMUL(P1, TRANSPOSE(F))
                   IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF
 
-               ELSE IF (cPhys .EQ. phys_struct) THEN
+               ELSE IF (cPhys .EQ. phys_struct .OR.
+     2                  cPhys .EQ. phys_gr) THEN
                   CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
      2               grInt, S, Dm, eVWP, Stau)
                   P1 = MATMUL(F, S)
@@ -895,7 +897,8 @@
             cPhys = eq(iEq)%dmn(cDmn)%phys
             IF (cPhys .NE. phys_struct .AND.
      2          cPhys .NE. phys_ustruct .AND.
-     3          cPhys .NE. phys_lElas) CYCLE
+     3          cPhys .NE. phys_lElas .AND.
+     4          cPhys .NE. phys_gr) CYCLE
 
             yl = 0._RKIND
             DO a=1, fs%eNoN
@@ -1086,7 +1089,8 @@
          cDmn  = DOMAIN(lM, iEq, e)
          cPhys = eq(iEq)%dmn(cDmn)%phys
          IF (cPhys .NE. phys_struct .AND.
-     2       cPhys .NE. phys_ustruct) CYCLE
+     2       cPhys .NE. phys_ustruct .AND.
+     3       cPhys .NE. phys_gr) CYCLE
          IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, e)
 
          DO a=1, eNoN

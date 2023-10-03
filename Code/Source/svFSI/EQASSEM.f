@@ -78,6 +78,9 @@
 
       CASE (phys_stokes)
          CALL CONSTRUCT_STOKES(lM, Ag, Yg)
+      
+      case (phys_gr)
+         CALL CONSTRUCT_dSOLID(lM, Ag, Yg, Dg)
 
       CASE DEFAULT
          err = " Undefined physics selection for assembly"
@@ -169,6 +172,9 @@
 
             CASE (phys_CEP)
                CALL BCEP(eNoN, w, N, h, lR)
+            
+            CASE (phys_gr)
+               CALL BLELAS(eNoN, w, N, h, nV, lR)
 
             CASE DEFAULT
                err = "Undefined phys in BCONSTRUCT"
@@ -271,7 +277,8 @@
                   CALL BUSTRUCT2D(eNoN, w, N, Nx, dl, hl, nV, lR, lK,
      2               lKd)
                END IF
-            ELSE IF (cPhys .EQ. phys_struct) THEN
+            ELSE IF (cPhys .EQ. phys_struct .OR.
+     2               cPhys .EQ. phys_gr) THEN
                IF (nsd .EQ. 3) THEN
                   CALL BSTRUCT3D(eNoN, w, N, Nx, dl, hl, nV, lR, lK)
                ELSE
@@ -290,7 +297,8 @@
                CALL USTRUCT_DOASSEM(eNoN, ptr, lKd, lK, lR)
                DEALLOCATE(lKd)
 
-            ELSE IF (cPhys .EQ. phys_struct) THEN
+            ELSE IF (cPhys .EQ. phys_struct .OR. 
+     2               cPhys .EQ. phys_gr) THEN
                CALL DOASSEM(eNoN, ptr, lK, lR)
 
             END IF
