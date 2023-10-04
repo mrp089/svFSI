@@ -129,7 +129,7 @@
             eq(iEq)%sym = 'SS'
          CASE (phys_gr)
             dFlag = .TRUE.
-            eq(iEq)%dof = nsd
+            eq(iEq)%dof = nsd + 1
             eq(iEq)%am  = am
             eq(iEq)%sym = 'GR'
          CASE DEFAULT

@@ -23,7 +23,7 @@
 extern"C"
 {
 
-void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out, int* gp)
+void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out, double* p_equi, double* stim)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
@@ -51,9 +51,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	Example example = aneurysm;
 	const bool example_asym = true;
 	
-	double KsKi = 0.35;
+	// double KsKi = 0.35;
 	// double KsKi = 0.0;
-	// double KsKi = 1.0;
+	double KsKi = 1.0;
 
 	const double curve = 0.0;
 
@@ -79,7 +79,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 101;
+	const int n_t_end = 11;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -686,10 +686,15 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const mat3ds Sp = 2.0*kappa*ups * (d_svh - KsKi * d_tau);
 
 //		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
-		p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
+		// p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
+		
+		p = p_equi[0];
+		stim[0] = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);
 		// p = po;
 		// p = po - kappa * (J - J_star) * (1 - dJ_star_dJ); // second part is always 0
 		// p = po + svh;
+
+		// std::cout<<p_equi[0]<<" "<<stim[0]<<std::endl;
 
 		S = Sx - J*p*Ci;
 		// S = Sx + Sp;

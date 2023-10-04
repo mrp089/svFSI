@@ -74,8 +74,8 @@
 !        Update shape functions for NURBS
          IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, e)
 
-        CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
-         ! CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+      !   CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+         CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
 
 !        Assembly
 #ifdef WITH_TRILINOS
@@ -88,6 +88,10 @@
          END IF
 #endif
       END DO ! e: loop
+
+      ! WRITE(*,*) lK(1,:,:)
+      ! WRITE(*,*) lR
+      ! CALL EXIT(0)
 
       DEALLOCATE(ptr, xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, N, Nx,
      2   lR, lK, lVWP)
@@ -104,7 +108,7 @@
      2   Dg(tDof,tnNo)
 
       INTEGER(KIND=IKIND) a, e, g, Ac, eNoN, cPhys, iFn, nFn
-      REAL(KIND=RKIND) w, Jac, grInt(nGrInt), ksix(nsd,nsd), p_equi
+      REAL(KIND=RKIND) w, Jac, grInt(nGrInt), ksix(nsd,nsd)
 
       REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,lM%eNoN),
      2   lK(dof*dof,lM%eNoN,lM%eNoN)
@@ -166,16 +170,10 @@
             grInt(:) = 0._RKIND
             IF (ALLOCATED(lM%grVn)) grInt(1:nGrInt) = lM%grVo(:,g,e)
 
-            IF (g.EQ.1) THEN
-              p_equi = 0._RKIND
-            ELSE
-              p_equi = lM%grVo(31,1,e)
-            END IF
-
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
                CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, g, p_equi)
+     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
@@ -299,14 +297,14 @@
 
 !####################################################################
       SUBROUTINE STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP, g, p_equi)
+     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
-      INTEGER(KIND=IKIND), INTENT(IN) :: eNoN, nFn, g
+      INTEGER(KIND=IKIND), INTENT(IN) :: eNoN, nFn
       REAL(KIND=RKIND), INTENT(IN) :: w, N(eNoN), Nx(3,eNoN),
      2   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN),
-     3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN), p_equi
+     3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN)
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(6)
       REAL(KIND=RKIND), INTENT(INOUT) :: grInt(nGrInt), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
@@ -314,7 +312,7 @@
       INTEGER(KIND=IKIND) :: a, b, i, j, k, ii, jj, dd
       REAL(KIND=RKIND) :: rho, dmp, T1, amd, afl, ya_g, fb(3), ud(3),
      2   NxSNx, BmDBm, F(3,3), S(3,3), P(3,3), Dm(6,6), DBm(6,3),
-     3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp)
+     3   Bm(6,3,eNoN), S0(3,3), eVWP(nvwp), p_equi, stim
 
 !     Define parameters
       rho     = eq(cEq)%dmn(cDmn)%prop(solid_density)
@@ -337,6 +335,7 @@
       S0     = 0._RKIND
       ya_g   = 0._RKIND
       eVWP   = 0._RKIND
+      p_equi = 0._RKIND
 
       DO a=1, eNoN
          ud(1) = ud(1) + N(a)*(rho*(al(i,a)-bfl(1,a)) + dmp*yl(i,a))
@@ -366,6 +365,9 @@
          S0(3,1) = S0(3,1) + N(a)*pS0l(6,a)
 
          ya_g    = ya_g + N(a)*ya_l(a)
+
+!        interpolate lagrange multiplier
+         p_equi = p_equi + N(a) * al(4,a)
       END DO
       S0(2,1) = S0(1,2)
       S0(3,2) = S0(2,3)
@@ -374,7 +376,7 @@
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
       CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
-     2              eVWP, g)
+     2              eVWP, p_equi, stim)
 
 !     Prestress
       pSl(1) = S(1,1)
@@ -453,34 +455,41 @@
             BmDBm = Bm(1,2,a)*DBm(1,1) + Bm(2,2,a)*DBm(2,1) +
      2              Bm(3,2,a)*DBm(3,1) + Bm(4,2,a)*DBm(4,1) +
      2              Bm(5,2,a)*DBm(5,1) + Bm(6,2,a)*DBm(6,1)
-            lK(dof+1,a,b) = lK(dof+1,a,b) + w*afl*BmDBm
+            lK(4,a,b) = lK(dof+1,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,2,a)*DBm(1,2) + Bm(2,2,a)*DBm(2,2) +
      2              Bm(3,2,a)*DBm(3,2) + Bm(4,2,a)*DBm(4,2) +
      2              Bm(5,2,a)*DBm(5,2) + Bm(6,2,a)*DBm(6,2)
-            lK(dof+2,a,b) = lK(dof+2,a,b) + w*(T1 + afl*BmDBm)
+            lK(5,a,b) = lK(dof+2,a,b) + w*(T1 + afl*BmDBm)
 
             BmDBm = Bm(1,2,a)*DBm(1,3) + Bm(2,2,a)*DBm(2,3) +
      2              Bm(3,2,a)*DBm(3,3) + Bm(4,2,a)*DBm(4,3) +
      2              Bm(5,2,a)*DBm(5,3) + Bm(6,2,a)*DBm(6,3)
-            lK(dof+3,a,b) = lK(dof+3,a,b) + w*afl*BmDBm
+            lK(6,a,b) = lK(dof+3,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,3,a)*DBm(1,1) + Bm(2,3,a)*DBm(2,1) +
      2              Bm(3,3,a)*DBm(3,1) + Bm(4,3,a)*DBm(4,1) +
      2              Bm(5,3,a)*DBm(5,1) + Bm(6,3,a)*DBm(6,1)
-            lK(2*dof+1,a,b) = lK(2*dof+1,a,b) + w*afl*BmDBm
+            lK(7,a,b) = lK(2*dof+1,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,3,a)*DBm(1,2) + Bm(2,3,a)*DBm(2,2) +
      2              Bm(3,3,a)*DBm(3,2) + Bm(4,3,a)*DBm(4,2) +
      2              Bm(5,3,a)*DBm(5,2) + Bm(6,3,a)*DBm(6,2)
-            lK(2*dof+2,a,b) = lK(2*dof+2,a,b) + w*afl*BmDBm
+            lK(8,a,b) = lK(2*dof+2,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,3,a)*DBm(1,3) + Bm(2,3,a)*DBm(2,3) +
      2              Bm(3,3,a)*DBm(3,3) + Bm(4,3,a)*DBm(4,3) +
      2              Bm(5,3,a)*DBm(5,3) + Bm(6,3,a)*DBm(6,3)
-            lK(2*dof+3,a,b) = lK(2*dof+3,a,b) + w*(T1 + afl*BmDBm)
+            lK(9,a,b) = lK(2*dof+3,a,b) + w*(T1 + afl*BmDBm)
          END DO
       END DO
+
+      IF (eq(cEq)%dmn(cDmn)%phys .EQ. phys_gr) THEN
+!        residual
+         DO a=1, eNoN
+            lR(4,a) = lR(4,a) + N(a) * (p_equi - stim)
+         END DO
+      END IF
 
       RETURN
       END SUBROUTINE STRUCT3D
