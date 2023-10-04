@@ -568,7 +568,7 @@
      2   p, trS, vmises, xi(nsd), xi0(nsd), xp(nsd), ed(nsymd),
      3   Im(nsd,nsd), F(nsd,nsd), C(nsd,nsd), Eg(nsd,nsd), P1(nsd,nsd),
      4   S(nsd,nsd), sigma(nsd,nsd), Dm(nsymd,nsymd), grInt(nGrInt),
-     5   eVWP(nvwp), Stau(nsd,nsd)
+     5   eVWP(nvwp), Stau(nsd,nsd), p_equi, stim
       TYPE(fsType) :: fs
 
       INTEGER, ALLOCATABLE :: eNds(:)
@@ -663,6 +663,7 @@
             Im = MAT_ID(nsd)
             F  = Im
             eVWP = 0._RKIND
+            p_equi = 0._RKIND
             DO a=1, fs%eNoN
                IF (nsd .EQ. 3) THEN
                   F(1,1) = F(1,1) + Nx(1,a)*dl(i,a)
@@ -680,7 +681,9 @@
                      eVWP(:) = eVWP(:) + N(a)*lVWP(:,a)
                   END IF
 !                 ------------------------------------------------------
-
+                  
+!                 interpolate lagrange multiplier
+                  p_equi = p_equi + N(a) * dl(4,a)
                ELSE
                   F(1,1) = F(1,1) + Nx(1,a)*dl(i,a)
                   F(1,2) = F(1,2) + Nx(2,a)*dl(i,a)
@@ -803,7 +806,7 @@
                ELSE IF (cPhys .EQ. phys_struct .OR.
      2                  cPhys .EQ. phys_gr) THEN
                   CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
-     2               grInt, S, Dm, eVWP, Stau)
+     2               grInt, S, Dm, eVWP, p_equi, stim)
                   P1 = MATMUL(F, S)
                   sigma = MATMUL(P1, TRANSPOSE(F))
                   IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF
@@ -852,7 +855,7 @@
                END IF
             CASE (outGrp_GR)
                CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
-     2               grInt, S, Dm, eVWP, Stau)
+     2               grInt, S, Dm, eVWP, p_equi, stim)
                resl = grInt
             END SELECT
 

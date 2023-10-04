@@ -221,7 +221,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 		double theta_od;
 		double phi_e_hm = 0.65;
-		const int vza = 5;
+		const int vza = 2;
 		int vzc;
 		const double z_od = lo/3.0/mult;
 		double nc;
@@ -235,7 +235,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 			// z_od = lo/4.0/mult;
 			// theta_od = 0.9;
 			// vza = 4;
-			vzc = 5;
+			vzc = 4;
 			// nc = 5.0;
 		}
 		else
@@ -369,8 +369,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		svo  = grInt[1];
 		phic = grInt[2];
 		tauo = grInt[3];
-		po   = grInt[4];
-		int k = 5;
+		int k = 4;
 		for (int i=0; i<3; i++)
 			for (int j=i; j<3; j++)
 			{
@@ -449,9 +448,12 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const mat3ds Sx = Se + phimo * Sm + phico * Sc + phimo * Sa;
 
 		// Lagrange multiplier during prestress
-		po = -lm*log(Jdep*J);
+		// po = -lm*log(Jdep*J);
+		p = p_equi[0];
+		stim[0] = p_equi[0] + J - 1;
 
-		S = Sx + Ci*lm*log(Jdep*J);
+		// S = Sx + Ci*lm*log(Jdep*J);
+		S = Sx - J*p*Ci;
 
 		// compute tangent
 		const mat3ds tent = dyad(F*N[1]);
@@ -824,8 +826,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		grInt[1] = svo;
 		grInt[2] = phic;
 		grInt[3] = tau;
-		grInt[4] = po;
-		int k = 5;
+		int k = 4;
 		for (int i=0; i<3; i++)
 			for (int j=i; j<3; j++)
 			{
@@ -848,7 +849,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		
 		k = 26;
 		grInt[k]      = J;
-		grInt[k + 1]  = 1.0/3.0/J*S.dotdot(C);
+		grInt[k + 1]  = svo;
 		grInt[k + 2]  = phico;
 		grInt[k + 3]  = 1.0;
 		grInt[k + 4]  = p;
@@ -856,8 +857,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		grInt[k + 6]  = grInt[k + 1] / grInt[1] - 1.0; // delta sigma
 		grInt[k + 7]  = KsKi; // kski = delta sigma / deltau tau
 		grInt[k + 8]  = grInt[k + 6] - KsKi * grInt[k + 5]; // ups -> 0
-		grInt[k + 9]  = p0;
-		grInt[k + 10] = p0 / p;
+		// grInt[k + 9]  = p0;
+		// grInt[k + 10] = p0 / p;
 		grInt[k + 11] = phic;
 	}
 	// store g&r state
@@ -873,8 +874,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		grInt[k + 6]  = grInt[k + 1] / grInt[1] - 1.0; // delta sigma
 		grInt[k + 7]  = grInt[k + 6] / grInt[k + 5]; // kski = delta sigma / deltau tau
 		grInt[k + 8]  = grInt[k + 6] - KsKi * grInt[k + 5]; // ups -> 0
-		grInt[k + 9]  = p0;
-		grInt[k + 10] = p0 / p;
+		// grInt[k + 9]  = p0;
+		// grInt[k + 10] = p0 / p;
 		grInt[k + 11] = phic;
 		// Fih = F.inverse();
 		// grInt[25] = J;

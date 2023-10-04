@@ -572,7 +572,7 @@
             outPuts(3)  = out_cauchy
             outPuts(4)  = out_strain
          ELSE
-            nDOP = (/13,2,0,0/)
+            nDOP = (/14,2,0,0/)
             outPuts(1)  = out_displacement
             outPuts(2)  = out_mises
             outPuts(3)  = out_stress
@@ -586,6 +586,7 @@
             outPuts(11) = out_velocity
             outPuts(12) = out_acceleration
             outPuts(13) = out_gr
+            outPuts(14) = out_pressure
          END IF
 
          CALL READLS(lSolver_CG, lEq, list)

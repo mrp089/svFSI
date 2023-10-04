@@ -367,7 +367,7 @@
          ya_g    = ya_g + N(a)*ya_l(a)
 
 !        interpolate lagrange multiplier
-         p_equi = p_equi + N(a) * al(4,a)
+         p_equi = p_equi + N(a) * dl(4,a)
       END DO
       S0(2,1) = S0(1,2)
       S0(3,2) = S0(2,3)
