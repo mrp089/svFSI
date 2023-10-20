@@ -563,7 +563,7 @@
 
       LOGICAL flag
       INTEGER(KIND=IKIND) a, e, g, Ac, i, j, k, l, cPhys, insd,
-     2   nFn
+     2   nFn, ifs
       REAL(KIND=RKIND) w, Jac, detF, Je, ya, Ja, elM, nu, lambda, mu,
      2   p, trS, vmises, xi(nsd), xi0(nsd), xp(nsd), ed(nsymd),
      3   Im(nsd,nsd), F(nsd,nsd), C(nsd,nsd), Eg(nsd,nsd), P1(nsd,nsd),
@@ -664,6 +664,7 @@
             F  = Im
             eVWP = 0._RKIND
             p_equi = 0._RKIND
+            ifs = 1
             DO a=1, fs%eNoN
                IF (nsd .EQ. 3) THEN
                   F(1,1) = F(1,1) + Nx(1,a)*dl(i,a)
@@ -806,7 +807,7 @@
                ELSE IF (cPhys .EQ. phys_struct .OR.
      2                  cPhys .EQ. phys_gr) THEN
                   CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
-     2               grInt, S, Dm, eVWP, p_equi, stim)
+     2               grInt, S, Dm, eVWP, ifs, p_equi, stim)
                   P1 = MATMUL(F, S)
                   sigma = MATMUL(P1, TRANSPOSE(F))
                   IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF
@@ -855,7 +856,7 @@
                END IF
             CASE (outGrp_GR)
                CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
-     2               grInt, S, Dm, eVWP, p_equi, stim)
+     2               grInt, S, Dm, eVWP, ifs, p_equi, stim)
                resl = grInt
             END SELECT
 

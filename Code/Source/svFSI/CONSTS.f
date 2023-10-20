@@ -92,7 +92,7 @@
      3   eType_TRI6 = 105, eType_QUD4 = 106, eType_QUD8 = 107,
      4   eType_QUD9 = 108, eType_TET4 = 109, eType_TET10 = 110,
      5   eType_HEX8 = 111, eType_HEX20 = 112, eType_HEX27 = 113,
-     6   eType_WDG = 114, eType_NRB = 115
+     6   eType_WDG = 114, eType_NRB = 115, eType_HEX0 = 116
 !--------------------------------------------------------------------
 !     Types of equations that are included in this solver
 !     Fluid equation (Navier-Stokes), nonlinear structure (pure d), heat

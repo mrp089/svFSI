@@ -23,7 +23,9 @@
 extern"C"
 {
 
-void stress_tangent_(const double* Fe, const double* fl, const double* time, double* eVWP, double* grInt, double* S_out, double* CC_out, double* p_equi, double* stim)
+void stress_tangent_(const double* Fe, const double* fl, const double* time, 
+					 double* eVWP, double* grInt, double* S_out, double* CC_out, 
+					 int* ifs, double* p_equi, double* stim)
 {
 	// convert deformation gradient to FEBio format
 	mat3d F(Fe[0], Fe[3], Fe[6], Fe[1], Fe[4], Fe[7], Fe[2], Fe[5], Fe[8]);
@@ -208,9 +210,9 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		mode = gr;
 
 	// examples from fig. 8, doi.org/10.1016/j.cma.2020.113156
-	if (example == aneurysm and mode == gr) {
+		if (example == aneurysm and mode == gr) {
 		// apply transfer function to advance time more equally
-		const double t_fac = 2.0;
+		const double t_fac = 3.0;
 		f_time = tanh(t_fac * f_time) / tanh(t_fac);
 
 		// no fiber reorientation
@@ -220,29 +222,27 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const double z_om = lo/2.0;
 
 		double theta_od;
-		double phi_e_hm = 0.65;
-		const int vza = 2;
+		double phi_e_hm = 0.7;
+		int vza;
 		int vzc;
-		const double z_od = lo/3.0/mult;
-		double nc;
+		double z_od;
 		if (example_asym)
 		{
 			// 8d
 //			z_od = lo/3.0/mult;
 //			vz = 5;
-			theta_od = M_PI/3.0;
+//			theta_od = 3.0;
 
-			// z_od = lo/4.0/mult;
-			// theta_od = 0.9;
-			// vza = 4;
-			vzc = 4;
-			// nc = 5.0;
+			z_od = lo/4.0/mult;
+			theta_od = 0.55;
+			vza = 2;
+			vzc = 6;
 		}
 		else
 		{
 			// 8b, 8c
-			// z_od = lo/4.0/mult;
-			// vza = 2;
+			z_od = lo/4.0/mult;
+			vza = 2;
 		}
 
 		// axial factor (0, 1]
@@ -251,12 +251,10 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// azimuth factor (0, 1]
 		double f_cir = 1.0;
 		if (example_asym)
-			f_cir = exp(-pow(abs((azimuth - M_PI) / (theta_od)), vzc));
-			// f_cir = (nc + cos(azimuth - M_PI)) / (1.0 + nc);
-			// f_cir = (nc + (1.0 + cos(pow(azimuth / M_PI - 1.0, vzc) * M_PI)) / 2.0) / (1.0 + nc);
+			f_cir = exp(-pow(abs((azimuth - M_PI) / (M_PI * theta_od)), vzc));
 
 		mu   *= 1.0 - f_time * f_axi * f_cir * phi_e_hm;
-		KsKi *= 1.0 - f_time * f_axi;
+		KsKi *= 1.0 - f_time * f_axi * f_cir;
 	}
 
 	if (example == tortuosity){
@@ -448,9 +446,11 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const mat3ds Sx = Se + phimo * Sm + phico * Sc + phimo * Sa;
 
 		// Lagrange multiplier during prestress
-		// po = -lm*log(Jdep*J);
+		// p = -lm*log(Jdep*J);
 		p = p_equi[0];
 		stim[0] = p_equi[0] + J - 1;
+
+		// std::cout<<stim[0]<<" "<<p_equi[0]<<" "<<J<<std::endl;
 
 		// S = Sx + Ci*lm*log(Jdep*J);
 		S = Sx - J*p*Ci;

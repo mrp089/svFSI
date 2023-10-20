@@ -306,6 +306,11 @@
          xi(1,14) = t; xi(2,14) = s; xi(3,14) = t
          xi(1,15) = t; xi(2,15) = s; xi(3,15) = s
 
+      CASE(eType_HEX0)
+         w =  1._RKIND
+         s =  0.5_RKIND
+         xi(1,1) = s; xi(2,1) = s; xi(3,1) = s
+
       CASE(eType_HEX8)
          w =  1._RKIND
          s =  1._RKIND/SQRT(3._RKIND)
@@ -646,6 +651,7 @@ c         WRITE(1000+cm%tF(),'(10X,A)') "Fail.."
       REAL(KIND=RKIND), INTENT(OUT) :: N(eNoN), Nxi(insd,eNoN)
 
       REAL(KIND=RKIND) :: s, t, mx, my, mz, ux, uy, uz, lx, ly, lz
+      REAL(KIND=IKIND) :: i, j
 
       IF (eType .EQ. eType_NRB) RETURN
 
@@ -713,6 +719,15 @@ c         WRITE(1000+cm%tF(),'(10X,A)') "Fail.."
          Nxi(1,10) = -4._RKIND*xi(3)
          Nxi(2,10) = -4._RKIND*xi(3)
          Nxi(3,10) =  4._RKIND*( s - xi(3) )
+
+      case(eType_HEX0)
+!        All element quantities are constant (independent of xi)
+         DO i=1,8
+            N(i) = 0.5_RKIND
+            DO j=1,3
+               Nxi(j,i) = 0._RKIND
+            END DO
+         END DO
 
 !     2D elements
       CASE(eType_HEX8)

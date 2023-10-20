@@ -247,6 +247,18 @@
          fs%eNoN  = 2
          fs%nG    = 2
 
+      CASE (eType_HEX8)
+         fs%eType = eType_HEX0
+         fs%lShpF = .FALSE.
+         fs%eNoN  = 8
+         fs%nG    = 1
+
+      CASE (eType_QUD4)
+         fs%eType = eType_QUD4
+         fs%lShpF = .FALSE.
+         fs%eNoN  = 4
+         fs%nG    = 4
+
       CASE DEFAULT
          err = " Cannot choose Taylor-Hood basis"
       END SELECT
@@ -339,6 +351,23 @@
      2            fs(1)%N(:,g), fs(1)%Nx(:,:,g))
             END DO
             CALL GETNNBNDS(fs(1)%eType, fs(1)%eNoN, fs(1)%xib, fs(1)%Nb)
+         ELSE IF (iOpt .EQ. 3) THEN
+            DO i=1, 2
+               fs(i)%nG    = lM%fs(i)%nG
+               fs(i)%eType = lM%fs(i)%eType
+               fs(i)%lShpF = lM%fs(i)%lShpF
+               fs(i)%eNoN  = lM%fs(i)%eNoN
+               CALL ALLOCFS(fs(i), nsd)
+               fs(i)%w   = lM%fs(i)%w
+               fs(i)%xi  = lM%fs(i)%xi
+               fs(i)%N   = lM%fs(i)%N
+               fs(i)%Nx  = lM%fs(i)%Nx
+               fs(i)%xib = lM%fs(i)%xib
+               fs(i)%Nb  = lM%fs(i)%Nb
+               IF (ALLOCATED(fs(i)%Nxx)) THEN
+                  fs(i)%Nxx = lM%fs(i)%Nxx
+               END IF
+            END DO
          END IF
       END IF
 

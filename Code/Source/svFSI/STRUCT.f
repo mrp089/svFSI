@@ -99,6 +99,139 @@
       RETURN
       END SUBROUTINE CONSTRUCT_dSOLID
 
+
+      SUBROUTINE EVAL_dSOLID_GR(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+      USE COMMOD
+      USE ALLFUN
+      IMPLICIT NONE
+      TYPE(mshType), INTENT(INOUT) :: lM
+      REAL(KIND=RKIND), INTENT(IN) :: Ag(tDof,tnNo), Yg(tDof,tnNo),
+     2   Dg(tDof,tnNo)
+
+      INTEGER(KIND=IKIND) a, e, g, Ac, eNoN, cPhys, iFn, nFn
+      REAL(KIND=RKIND) w, Jac, grInt(nGrInt), ksix(nsd,nsd)
+      TYPE(fsType) :: fs(2)
+
+      REAL(KIND=RKIND), INTENT(INOUT) :: lR(dof,lM%eNoN),
+     2   lK(dof*dof,lM%eNoN,lM%eNoN)
+
+      INTEGER(KIND=IKIND), INTENT(INOUT) :: ptr(lM%eNoN)
+      INTEGER(KIND=IKIND) ifs
+
+      REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
+     2   dl(:,:), bfl(:,:), fN(:,:), pS0l(:,:), pSl(:), ya_l(:), N(:),
+     3   Nx(:,:), lVWP(:,:)
+
+      eNoN = lM%eNoN
+      nFn  = lM%nFn
+      IF (nFn .EQ. 0) nFn = 1
+
+!     STRUCT: dof = nsd
+      ALLOCATE(xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
+     2   dl(tDof,eNoN), bfl(nsd,eNoN), fN(nsd,nFn), pS0l(nsymd,eNoN),
+     3   pSl(nsymd), ya_l(eNoN), N(eNoN), Nx(nsd,eNoN),
+     4   lVWP(nvwp,eNoN))
+
+      CALL GETTHOODFS(fs, lM, 0, 3)
+
+      ! DO g=1,2
+      !    WRITE(*,*) "nG"
+      !    WRITE(*,*) fs(g)%nG
+      !    WRITE(*,*) "eType"
+      !    WRITE(*,*) fs(g)%eType
+      !    WRITE(*,*) "lShpF"
+      !    WRITE(*,*) fs(g)%lShpF
+      !    WRITE(*,*) "eNoN"
+      !    WRITE(*,*) fs(g)%eNoN
+      !    WRITE(*,*) "w"
+      !    WRITE(*,*) fs(g)%w
+      !    WRITE(*,*) "xi"
+      !    WRITE(*,*) fs(g)%xi
+      !    WRITE(*,*) "N"
+      !    WRITE(*,*) fs(g)%N
+      !    WRITE(*,*) "Nx"
+      !    WRITE(*,*) fs(g)%Nx
+      !    WRITE(*,*) "xib"
+      !    WRITE(*,*) fs(g)%xib
+      !    WRITE(*,*) "Nb"
+      !    WRITE(*,*) fs(g)%Nb
+      !    WRITE(*,*) ""
+      ! END DO
+      ! CALL EXIT(0)
+
+!     Create local copies
+      fN   = 0._RKIND
+      pS0l = 0._RKIND
+      ya_l = 0._RKIND
+      DO a=1, eNoN
+         Ac = lM%IEN(a,e)
+         ptr(a)   = Ac
+         xl(:,a)  = x(:,Ac)
+         al(:,a)  = Ag(:,Ac)
+         yl(:,a)  = Yg(:,Ac)
+         dl(:,a)  = Dg(:,Ac)
+         bfl(:,a) = Bf(:,Ac)
+
+         IF (useVarWall) lVWP(:,a) = vWP0(:,Ac)
+         IF (ALLOCATED(lM%fN)) THEN
+            DO iFn=1, nFn
+               fN(:,iFn) = lM%fN((iFn-1)*nsd+1:iFn*nsd,e)
+            END DO
+         END IF
+         IF (ALLOCATED(pS0)) pS0l(:,a) = pS0(:,Ac)
+         IF (cem%cpld) ya_l(a) = cem%Ya(Ac)
+      END DO
+
+!     Gauss integration
+      lR = 0._RKIND
+      lK = 0._RKIND
+
+!     Loop shape functions
+      DO ifs=1,1
+         DO g=1, fs(ifs)%nG
+            IF (g.EQ.1 .OR. .NOT.fs(ifs)%lShpF) THEN
+               CALL GNN(eNoN, nsd, fs(ifs)%Nx(:,:,g), xl, Nx, Jac, ksix)
+               IF (ISZERO(Jac)) err = "Jac < 0 @ element "//e
+            END IF
+            w = fs(ifs)%w(g) * Jac
+            N = fs(ifs)%N(:,g)
+
+!           retrieve g&r internal variables
+            grInt(:) = 0._RKIND
+            IF (ALLOCATED(lM%grVn)) grInt(1:nGrInt) = lM%grVo(:,g,e)
+
+            pSl = 0._RKIND
+            IF (nsd .EQ. 3) THEN
+               CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
+     2                       pS0l, pSl, ya_l, lR, lK, grInt, lVWP, ifs)
+            ELSE IF (nsd .EQ. 2) THEN
+               CALL STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
+     2                       pS0l, pSl, ya_l, lR, lK, grInt)
+            END IF
+
+!           Prestress
+            IF (pstEq) THEN
+               DO a=1, eNoN
+                  Ac = ptr(a)
+                  pSn(:,Ac) = pSn(:,Ac) + w*N(a)*pSl(:)
+                  pSa(Ac)   = pSa(Ac)   + w*N(a)
+               END DO
+            END IF
+
+!           Update g&r variables
+            IF (ALLOCATED(lM%grVn)) lM%grVo(:,g,e) = grInt(1:nGrInt)
+            IF (ALLOCATED(lM%grVn)) lM%grVn(:,g,e) = grInt(1:nGrInt)
+
+         END DO ! g: loop
+      END DO
+
+!     ptr, lR, lK,
+      DEALLOCATE(xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, N, Nx, lVWP)
+
+      RETURN
+      END SUBROUTINE EVAL_dSOLID_GR
+
+
       SUBROUTINE EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
       USE COMMOD
       USE ALLFUN
@@ -238,7 +371,7 @@
       lK = 0._RKIND
 
 !     central evaluation
-      CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+      CALL EVAL_dSOLID_GR(e, lM, Ag, Yg, Dg, ptr, lK, lR)
 
 !     loop nodes
       DO ii=1,dof
@@ -297,11 +430,11 @@
 
 !####################################################################
       SUBROUTINE STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP)
+     2   pS0l, pSl, ya_l, lR, lK, grInt, lVWP, ifs)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
-      INTEGER(KIND=IKIND), INTENT(IN) :: eNoN, nFn
+      INTEGER(KIND=IKIND), INTENT(IN) :: eNoN, nFn, ifs
       REAL(KIND=RKIND), INTENT(IN) :: w, N(eNoN), Nx(3,eNoN),
      2   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN),
      3   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN)
@@ -376,7 +509,7 @@
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
       CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
-     2              eVWP, p_equi, stim)
+     2              eVWP, ifs, p_equi, stim)
 
 !     Prestress
       pSl(1) = S(1,1)
@@ -488,6 +621,10 @@
 !        residual
          DO a=1, eNoN
             lR(4,a) = lR(4,a) + N(a) * (p_equi - stim)
+            ! WRITE(*,*) "p_equi"
+            ! WRITE(*,*) p_equi
+            ! WRITE(*,*) "stim"
+            ! WRITE(*,*) stim
          END DO
       END IF
 

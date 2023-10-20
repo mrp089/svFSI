@@ -166,6 +166,9 @@ void petsc_create_linearsolver_(const PetscInt *lsType, const PetscInt *pcType, 
         case EQ_stokes:
             psol[cEq].pre = "ss_";
             break;
+        case EQ_gr:
+            psol[cEq].pre = "st_";
+            break;
         default:
             PetscPrintf(MPI_COMM_WORLD, "ERROR <PETSC_CREATE_LINEARSOLVER>: "
                 "equation type %d is not defined.\n", *phys);
