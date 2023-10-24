@@ -190,6 +190,7 @@ set(FSRCS TYPEMOD.f
          SHELLS.f
          STOKES.f
          STRUCT.f
+         STRUCT_gr.f
          TXT.f
          USTRUCT.f
          VTKXML.f)

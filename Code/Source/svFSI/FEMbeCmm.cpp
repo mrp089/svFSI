@@ -446,11 +446,12 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time,
 		const mat3ds Sx = Se + phimo * Sm + phico * Sc + phimo * Sa;
 
 		// Lagrange multiplier during prestress
-		// p = -lm*log(Jdep*J);
+		p = -lm*log(Jdep*J);
 		p = p_equi[0];
-		stim[0] = p_equi[0] + J - 1;
+		stim[0] = p_equi[0] + J - 1.0;
+		// stim[0] = 0.0;
 
-		// std::cout<<stim[0]<<" "<<p_equi[0]<<" "<<J<<std::endl;
+		std::cout<<p_equi[0]<<" "<<stim[0]<<std::endl;
 
 		// S = Sx + Ci*lm*log(Jdep*J);
 		S = Sx - J*p*Ci;

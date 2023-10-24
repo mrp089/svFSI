@@ -723,7 +723,7 @@ c         WRITE(1000+cm%tF(),'(10X,A)') "Fail.."
       case(eType_HEX0)
 !        All element quantities are constant (independent of xi)
          DO i=1,8
-            N(i) = 0.5_RKIND
+            N(i) = 0.125_RKIND
             DO j=1,3
                Nxi(j,i) = 0._RKIND
             END DO
