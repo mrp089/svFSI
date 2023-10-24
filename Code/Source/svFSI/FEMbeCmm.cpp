@@ -79,7 +79,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 	const int n_t_pre = 1;
 
 	// number of time steps total
-	const int n_t_end = 101;
+	const int n_t_end = 11;
 
 	const double pretime = n_t_pre * dt;
 	const double endtime = n_t_end * dt;							// 11.0 | 31.0-32.0 (TEVG)
@@ -343,6 +343,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 
 	// computation of spatial moduli
 	tens4dmm css;
+	tens4dmm css_x;
 	mat3ds sfpro;
 
 	// retrieve internal variables 2*(1+1+1+1+6+6+9) = 50
@@ -449,7 +450,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const mat3ds Sx = Se + phimo * Sm + phico * Sc + phimo * Sa;
 
 		// Lagrange multiplier during prestress
-		po = -lm*log(Jdep*J);
+		p = -lm*log(Jdep*J);
 
 		S = Sx + Ci*lm*log(Jdep*J);
 
@@ -670,8 +671,8 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		const tens4dmm cess = tens4dmm(ce);							// ce in tens4dmm form
 
 //		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
-		css = cess + cfss + cpnss;
-		tens4dmm css_ref = J*css.pp(F.inverse());
+		css_x = cess + cfss + cpnss;
+		// tens4dmm css_ref = J*css.pp(F.inverse());
 
 		svh = 1.0/3.0/J*Sx.dotdot(C);
 
@@ -680,13 +681,18 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		ups = delta_sig - KsKi * delta_tau;
 		p0 = kappa*ups;
 
-		const mat3ds d_svh = 1.0/3.0/J/svo * (Sx + css_ref.dot(C) - Sx.dotdot(C)/2.0 * Ci);
+		// const mat3ds d_svh = 1.0/3.0/J/svo * (Sx + css_ref.dot(C) - Sx.dotdot(C)/2.0 * Ci);
 		// const mat3ds d_svh = (1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css))).dot(C)/svo;
-		const mat3ds d_tau = -3.0/2.0*pow(rIrIo,-4) * (ro/rIo/lt*tent - (ro-rIo)/rIo/lr*tenr);
-		const mat3ds Sp = 2.0*kappa*ups * (d_svh - KsKi * d_tau);
+		// const mat3ds d_tau = -3.0/2.0*pow(rIrIo,-4) * (ro/rIo/lt*tent - (ro-rIo)/rIo/lr*tenr);
+		// const mat3ds Sp = 2.0*kappa*ups * (d_svh - KsKi * d_tau);
 
 //		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
-		p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
+		if (gp[0] == 0)
+			p = grInt[30];
+		else
+			p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
+		// if (gp[0] == 1)
+		// 	std::cout<<"update!"<<std::endl;
 		// p = po;
 		// p = po - kappa * (J - J_star) * (1 - dJ_star_dJ); // second part is always 0
 		// p = po + svh;
@@ -701,14 +707,18 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time, dou
 		// const double a = 0.0;
 		// S = Sx * (1+a) - (svh * (1+a) - svo * (1.0+KsKi*(tau_ratio-1.0))) * J*Ci;
 
-		css += 1.0/3.0*(2.0*sx.tr()*IoIss-2.0*Ixsx-ddot(IxIss,css));
-		css += svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss-2.0*IoIss);
-	
-		// wss linearization
-		if (!coup_wss)
+		css = css_x - 2.0 * p * IoIss;
+		css += - 2.0/3.0 * Ixsx - 1.0/3.0 * ddot(IxIss,css_x);
+		if (gp[0] == 1)
 		{
-			css += 3.0 * pow(rIrIo,-4) * phim * 2.0 * Cratio * CS * EPS * exp(-Cratio * Cratio) / (1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
-			css -= 3.0 * pow(rIrIo,-4) * svo/(1.0-delta) * KsKi * EPS                                               * (ro/rIo/lt*Ixntt  -(ro-rIo)/rIo/lr*Ixnrr);
+			css += svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam)*(IxIss);
+		
+			// wss linearization
+			if (!coup_wss)
+			{
+				css += 3.0 * pow(rIrIo,-4) * phim * 2.0 * Cratio * CS * EPS * exp(-Cratio * Cratio) / (1.0-exp(-CB*CB)) * (ro/rIo/lt*saoxntt-(ro-rIo)/rIo/lr*saoxnrr);
+				css -= 3.0 * pow(rIrIo,-4) * svo/(1.0-delta) * KsKi * EPS                                               * (ro/rIo/lt*Ixntt  -(ro-rIo)/rIo/lr*Ixnrr);
+			}
 		}
 
 		break;

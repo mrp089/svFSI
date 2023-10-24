@@ -606,6 +606,8 @@
          TYPE(faceType), ALLOCATABLE :: fa(:)
 !        IB: tracers
          TYPE(traceType) :: trc
+!        last iteration?
+         LOGICAL last_step
       END TYPE mshType
 
 !     Equation type

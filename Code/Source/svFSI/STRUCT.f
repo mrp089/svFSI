@@ -73,8 +73,8 @@
 !        Update shape functions for NURBS
          IF (lM%eType .EQ. eType_NRB) CALL NRBNNX(lM, e)
 
-        CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
-         ! CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+      !   CALL EVAL_dSOLID(e, lM, Ag, Yg, Dg, ptr, lK, lR)
+         CALL EVAL_dSOLID_FD(e, lM, Ag, Yg, Dg, ptr, lK, lR)
 
 !        Assembly
 #ifdef WITH_TRILINOS
@@ -174,7 +174,8 @@
             pSl = 0._RKIND
             IF (nsd .EQ. 3) THEN
                CALL STRUCT3D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,
-     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, g, p_equi)
+     2            pS0l, pSl, ya_l, lR, lK, grInt, lVWP, lM%last_step, 
+     3            p_equi)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL STRUCT2D(eNoN, nFn, w, N, Nx, al, yl, dl, bfl, fN,

@@ -801,7 +801,7 @@
 
                ELSE IF (cPhys .EQ. phys_struct) THEN
                   CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
-     2               grInt, S, Dm, eVWP, Stau)
+     2               grInt, S, Dm, eVWP, 1)
                   P1 = MATMUL(F, S)
                   sigma = MATMUL(P1, TRANSPOSE(F))
                   IF (.NOT.ISZERO(detF)) sigma(:,:) = sigma(:,:) / detF
@@ -850,7 +850,7 @@
                END IF
             CASE (outGrp_GR)
                CALL GETPK2CC(eq(iEq)%dmn(cDmn), F, nFn, fN, ya,
-     2               grInt, S, Dm, eVWP, Stau)
+     2               grInt, S, Dm, eVWP, 1)
                resl = grInt
             END SELECT
 

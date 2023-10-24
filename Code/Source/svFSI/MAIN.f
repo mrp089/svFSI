@@ -90,6 +90,8 @@
      3   wss(maxnsd,msh(1)%nNo), wsse(msh(1)%nEl),
      4   dwss(maxnsd,msh(1)%nNo), sdwss(maxnsd))
 
+      msh(1)%last_step = 0
+
 !--------------------------------------------------------------------
 !     Outer loop for marching in time. When entring this loop, all old
 !     variables are completely set and satisfy BCs.
@@ -252,7 +254,11 @@
             CALL EXCEPTIONS
 
 !        Writing out the time passed, residual, and etc.
-            IF (ALL(eq%ok)) EXIT
+            IF (ALL(eq%ok)) msh(1)%last_step = .TRUE.
+            IF (msh(1)%last_step) THEN
+               msh(1)%last_step = .FALSE.
+               EXIT
+            END IF
             ! output every Newton iteration
             ! CALL WRITEVTUS(An, Yn, Dn, .FALSE.)
             CALL OUTRESULT(timeP, 2, iEqOld)
