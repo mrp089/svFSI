@@ -446,15 +446,21 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time,
 		const mat3ds Sx = Se + phimo * Sm + phico * Sc + phimo * Sa;
 
 		// Lagrange multiplier during prestress
-		p = -lm*log(Jdep*J);
-		p = p_equi[0];
-		stim[0] = p_equi[0] + J - 1.0;
+		// p = -lm*log(Jdep*J);
 		// stim[0] = 0.0;
 
-		std::cout<<p_equi[0]<<" "<<stim[0]<<std::endl;
-
 		// S = Sx + Ci*lm*log(Jdep*J);
-		S = Sx - J*p*Ci;
+		// S = Sx - J*p*Ci;
+
+		if (ifs[0] == 0) {
+			S = Sx;
+		}
+		else {
+			p = p_equi[0];
+			stim[0] = p * (J - 1.0);
+			S = - J*p*Ci;
+			// std::cout<<p_equi[0]<<" "<<stim[0]<<std::endl;
+		}
 
 		// compute tangent
 		const mat3ds tent = dyad(F*N[1]);
@@ -691,15 +697,20 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time,
 //		const double p = 1.0/3.0/J*Sx.dotdot(C) - svo/(1.0-delta)*(1.0+KsKi*(EPS*pow(rIrIo,-3)-1.0)-KfKi*inflam);		// Ups = 1 -> p
 		// p = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);		// Ups = 1 -> p
 		
-		p = p_equi[0];
-		stim[0] = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);
 		// p = po;
 		// p = po - kappa * (J - J_star) * (1 - dJ_star_dJ); // second part is always 0
 		// p = po + svh;
 
-		// std::cout<<p_equi[0]<<" "<<stim[0]<<std::endl;
-
-		S = Sx - J*p*Ci;
+		if (ifs[0] == 0) {
+			S = Sx;
+		}
+		else {
+			p = p_equi[0];
+			stim[0] = svh - svo/(1.0-delta)*(1.0+KsKi*(EPS*tau_ratio-1.0)-KfKi*inflam);
+			S = - J*p*Ci;
+			// std::cout<<p_equi[0]<<" "<<stim[0]<<std::endl;
+		}
+		// S = Sx - J*p*Ci;
 		// S = Sx + Sp;
 		// S = Sx * svo/svh;
 		// S = Sx - kappa*ups * J*Ci;
@@ -863,7 +874,7 @@ void stress_tangent_(const double* Fe, const double* fl, const double* time,
 		grInt[k + 11] = phic;
 	}
 	// store g&r state
-	if (mode == gr)
+	if (mode == gr) // && ifs[0] == 0
 	{
 		int k = 26;
 		grInt[k]      = J;

@@ -124,33 +124,65 @@
       lR = 0._RKIND
       lK = 0._RKIND
 
-!     Loop shape functions
+      pSl = 0._RKIND
+
+!     First integration
       DO g=1, fs(1)%nG
 !        displacement and pressure shape functions
          CALL GNN(eNoN, nsd, fs(1)%Nx(:,:,g), xl, Nxd, Jac, ksix)
          IF (ISZERO(Jac)) err = "Jac < 0 @ element "//e
-         Nxp(:,:) = fs(2)%Nx(:,:,1)
          
          wd = fs(1)%w(g) * Jac
-         wp = fs(2)%w(1) * Jac
          Nd = fs(1)%N(:,g)
-         Np = fs(2)%N(:,1)
 
 !        retrieve g&r internal variables
          grInt(:) = 0._RKIND
          IF (ALLOCATED(lM%grVn)) grInt(1:nGrInt) = lM%grVo(:,g,e)
 
-         pSl = 0._RKIND
-         IF (nsd .EQ. 3) THEN
-            CALL STRUCT3D_GR(eNoN, nFn, wd, wp, Nd, Np, Nxd, Nxp,
+         CALL STRUCT3D_GR_ISO(eNoN, nFn,
+     1                       wd, Nd, Nxd,
      2                       al, yl, dl, bfl, fN, pS0l, pSl, 
-     3                       ya_l, lR, lK, grInt, lVWP, ifs)
-         END IF
+     3                       ya_l, lR, lK, grInt, lVWP, 0)
 
 !        Update g&r variables
          IF (ALLOCATED(lM%grVn)) lM%grVo(:,g,e) = grInt(1:nGrInt)
          IF (ALLOCATED(lM%grVn)) lM%grVn(:,g,e) = grInt(1:nGrInt)
       END DO ! g: loop
+
+! !     Second integration
+!       DO g=1, fs(1)%nG
+! !        displacement and pressure shape functions
+!             CALL GNN(eNoN, nsd, fs(1)%Nx(:,:,g), xl, Nxd, Jac, ksix)
+!             IF (ISZERO(Jac)) err = "Jac < 0 @ element "//e
+            
+!             wd = fs(1)%w(g) * Jac
+!             Nd = fs(1)%N(:,g)
+
+! !        retrieve g&r internal variables
+!             grInt(:) = 0._RKIND
+!             IF (ALLOCATED(lM%grVn)) grInt(1:nGrInt) = lM%grVo(:,g,e)
+
+!             CALL STRUCT3D_GR_VOL(eNoN, nFn,
+!      1                       wd, Nd, Nxd,
+!      2                       al, yl, dl, bfl, fN, pS0l, pSl, 
+!      3                       ya_l, lR, lK, grInt, lVWP, 0)
+
+! !        Update g&r variables
+!             IF (ALLOCATED(lM%grVn)) lM%grVo(:,g,e) = grInt(1:nGrInt)
+!             IF (ALLOCATED(lM%grVn)) lM%grVn(:,g,e) = grInt(1:nGrInt)
+!       END DO ! g: loop
+
+!     Second integration
+      wp = fs(2)%w(1) * Jac
+      Np = fs(2)%N(:,1)
+
+!     retrieve g&r internal variables
+      ! grInt(:) = 0._RKIND
+
+      CALL STRUCT3D_GR_VOL(eNoN, nFn,
+     1                       wp, Np, Nxd,
+     2                       al, yl, dl, bfl, fN, pS0l, pSl, 
+     3                       ya_l, lR, lK, grInt, lVWP, ifs)
 
 !     ptr, lR, lK,
       DEALLOCATE(xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, 
@@ -160,20 +192,187 @@
       END SUBROUTINE EVAL_dSOLID_GR
 
 
-      SUBROUTINE STRUCT3D_GR(eNoN, nFn, wd, wp, Nd, Np, Nxd, Nxp,
+      SUBROUTINE STRUCT3D_GR_ISO(eNoN, nFn, w, N, Nx,
      2 al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lR, lK, grInt, lVWP, ifs)
       USE COMMOD
       USE ALLFUN
       IMPLICIT NONE
       INTEGER(KIND=IKIND), INTENT(IN) :: eNoN, nFn, ifs
-      REAL(KIND=RKIND), INTENT(IN) :: wd, wp, Nd(eNoN), Np(eNoN),
-     3   Nxd(3,eNoN), Nxp(3,eNoN),
+      REAL(KIND=RKIND), INTENT(IN) :: w, N(eNoN), Nx(3,eNoN),
      4   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN),
      5   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN)
       REAL(KIND=RKIND), INTENT(OUT) :: pSl(6)
       REAL(KIND=RKIND), INTENT(INOUT) :: grInt(nGrInt), lR(dof,eNoN),
      2   lK(dof*dof,eNoN,eNoN)
+      
+      INTEGER(KIND=IKIND) :: a, b, i, j, k, ii, jj, dd
+      REAL(KIND=RKIND) :: rho, dmp, T1, amd, afl, ya_g, fb(3), ud(3),
+     2   NxSNx, BmDBm, F(3,3), S(3,3), P(3,3), Dm(6,6), DBm(6,3),
+     3   Bm(6,3,eNoN), eVWP(nvwp), p_equi, stim
+      
+!     Define parameters
+      rho     = eq(cEq)%dmn(cDmn)%prop(solid_density)
+      dmp     = eq(cEq)%dmn(cDmn)%prop(damping)
+      fb(1)   = eq(cEq)%dmn(cDmn)%prop(f_x)
+      fb(2)   = eq(cEq)%dmn(cDmn)%prop(f_y)
+      fb(3)   = eq(cEq)%dmn(cDmn)%prop(f_z)
+      amd     = eq(cEq)%am*rho + eq(cEq)%af*eq(cEq)%gam*dt*dmp
+      afl     = eq(cEq)%af*eq(cEq)%beta*dt*dt
+      i       = eq(cEq)%s
+      j       = i + 1
+      k       = j + 1
 
+!     Inertia, body force and deformation tensor (F)
+      ud     = 0._RKIND
+      F      = 0._RKIND
+      F(1,1) = 1._RKIND
+      F(2,2) = 1._RKIND
+      F(3,3) = 1._RKIND
+      ya_g   = 0._RKIND
+
+!     G&R parameters
+      eVWP   = 0._RKIND
+      p_equi = 0._RKIND
+      stim   = 0._RKIND
+
+      DO a=1, eNoN
+            F(1,1) = F(1,1) + Nx(1,a)*dl(i,a)
+            F(1,2) = F(1,2) + Nx(2,a)*dl(i,a)
+            F(1,3) = F(1,3) + Nx(3,a)*dl(i,a)
+            F(2,1) = F(2,1) + Nx(1,a)*dl(j,a)
+            F(2,2) = F(2,2) + Nx(2,a)*dl(j,a)
+            F(2,3) = F(2,3) + Nx(3,a)*dl(j,a)
+            F(3,1) = F(3,1) + Nx(1,a)*dl(k,a)
+            F(3,2) = F(3,2) + Nx(2,a)*dl(k,a)
+            F(3,3) = F(3,3) + Nx(3,a)*dl(k,a)
+
+      !        Calculate local wall property
+            IF (useVarWall) eVWP(:) = eVWP(:) + N(a)*lVWP(:,a)
+      END DO
+
+!     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
+!     Voigt notationa (Dm)
+      CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
+     2              eVWP, 0, p_equi, stim)
+
+!     1st Piola-Kirchhoff tensor (P)
+      P    = MATMUL(F, S)
+
+      DO a=1, eNoN
+      Bm(1,1,a) = Nx(1,a)*F(1,1)
+      Bm(1,2,a) = Nx(1,a)*F(2,1)
+      Bm(1,3,a) = Nx(1,a)*F(3,1)
+
+      Bm(2,1,a) = Nx(2,a)*F(1,2)
+      Bm(2,2,a) = Nx(2,a)*F(2,2)
+      Bm(2,3,a) = Nx(2,a)*F(3,2)
+
+      Bm(3,1,a) = Nx(3,a)*F(1,3)
+      Bm(3,2,a) = Nx(3,a)*F(2,3)
+      Bm(3,3,a) = Nx(3,a)*F(3,3)
+
+      Bm(4,1,a) = (Nx(1,a)*F(1,2) + F(1,1)*Nx(2,a))
+      Bm(4,2,a) = (Nx(1,a)*F(2,2) + F(2,1)*Nx(2,a))
+      Bm(4,3,a) = (Nx(1,a)*F(3,2) + F(3,1)*Nx(2,a))
+
+      Bm(5,1,a) = (Nx(2,a)*F(1,3) + F(1,2)*Nx(3,a))
+      Bm(5,2,a) = (Nx(2,a)*F(2,3) + F(2,2)*Nx(3,a))
+      Bm(5,3,a) = (Nx(2,a)*F(3,3) + F(3,2)*Nx(3,a))
+
+      Bm(6,1,a) = (Nx(3,a)*F(1,1) + F(1,3)*Nx(1,a))
+      Bm(6,2,a) = (Nx(3,a)*F(2,1) + F(2,3)*Nx(1,a))
+      Bm(6,3,a) = (Nx(3,a)*F(3,1) + F(3,3)*Nx(1,a))
+      END DO
+
+!     Local residue and tangent matrices
+      DO a=1, eNoN
+      lR(1,a) = lR(1,a) + w*(N(a)*ud(1) + Nx(1,a)*P(1,1) +
+     2      Nx(2,a)*P(1,2) + Nx(3,a)*P(1,3))
+      lR(2,a) = lR(2,a) + w*(N(a)*ud(2) + Nx(1,a)*P(2,1) +
+     2      Nx(2,a)*P(2,2) + Nx(3,a)*P(2,3))
+      lR(3,a) = lR(3,a) + w*(N(a)*ud(3) + Nx(1,a)*P(3,1) +
+     2      Nx(2,a)*P(3,2) + Nx(3,a)*P(3,3))
+
+            DO b=1, eNoN
+!           Geometric stiffness
+            NxSNx = Nx(1,a)*S(1,1)*Nx(1,b) + 
+     2              Nx(2,a)*S(2,1)*Nx(1,b) +
+     3              Nx(3,a)*S(3,1)*Nx(1,b) + 
+     4              Nx(1,a)*S(1,2)*Nx(2,b) +
+     5              Nx(2,a)*S(2,2)*Nx(2,b) + 
+     6              Nx(3,a)*S(3,2)*Nx(2,b) +
+     7              Nx(1,a)*S(1,3)*Nx(3,b) + 
+     8              Nx(2,a)*S(2,3)*Nx(3,b) +
+     9              Nx(3,a)*S(3,3)*Nx(3,b)
+            T1 = amd*N(a)*N(b) + afl*NxSNx
+
+!           Material Stiffness (Bt*D*B)
+            DBm = MATMUL(Dm, Bm(:,:,b))
+
+            BmDBm = Bm(1,1,a)*DBm(1,1) + Bm(2,1,a)*DBm(2,1) +
+     2              Bm(3,1,a)*DBm(3,1) + Bm(4,1,a)*DBm(4,1) +
+     2              Bm(5,1,a)*DBm(5,1) + Bm(6,1,a)*DBm(6,1)
+            lK(1,a,b) = lK(1,a,b) + w*(T1 + afl*BmDBm)
+
+            BmDBm = Bm(1,1,a)*DBm(1,2) + Bm(2,1,a)*DBm(2,2) +
+     2              Bm(3,1,a)*DBm(3,2) + Bm(4,1,a)*DBm(4,2) +
+     2              Bm(5,1,a)*DBm(5,2) + Bm(6,1,a)*DBm(6,2)
+            lK(2,a,b) = lK(2,a,b) + w*afl*BmDBm
+
+            BmDBm = Bm(1,1,a)*DBm(1,3) + Bm(2,1,a)*DBm(2,3) +
+     2              Bm(3,1,a)*DBm(3,3) + Bm(4,1,a)*DBm(4,3) +
+     2              Bm(5,1,a)*DBm(5,3) + Bm(6,1,a)*DBm(6,3)
+            lK(3,a,b) = lK(3,a,b) + w*afl*BmDBm
+
+            BmDBm = Bm(1,2,a)*DBm(1,1) + Bm(2,2,a)*DBm(2,1) +
+     2              Bm(3,2,a)*DBm(3,1) + Bm(4,2,a)*DBm(4,1) +
+     2              Bm(5,2,a)*DBm(5,1) + Bm(6,2,a)*DBm(6,1)
+            lK(4,a,b) = lK(dof+1,a,b) + w*afl*BmDBm
+
+            BmDBm = Bm(1,2,a)*DBm(1,2) + Bm(2,2,a)*DBm(2,2) +
+     2              Bm(3,2,a)*DBm(3,2) + Bm(4,2,a)*DBm(4,2) +
+     2              Bm(5,2,a)*DBm(5,2) + Bm(6,2,a)*DBm(6,2)
+            lK(5,a,b) = lK(dof+2,a,b) + w*(T1 + afl*BmDBm)
+
+            BmDBm = Bm(1,2,a)*DBm(1,3) + Bm(2,2,a)*DBm(2,3) +
+     2              Bm(3,2,a)*DBm(3,3) + Bm(4,2,a)*DBm(4,3) +
+     2              Bm(5,2,a)*DBm(5,3) + Bm(6,2,a)*DBm(6,3)
+            lK(6,a,b) = lK(dof+3,a,b) + w*afl*BmDBm
+
+            BmDBm = Bm(1,3,a)*DBm(1,1) + Bm(2,3,a)*DBm(2,1) +
+     2              Bm(3,3,a)*DBm(3,1) + Bm(4,3,a)*DBm(4,1) +
+     2              Bm(5,3,a)*DBm(5,1) + Bm(6,3,a)*DBm(6,1)
+            lK(7,a,b) = lK(2*dof+1,a,b) + w*afl*BmDBm
+
+            BmDBm = Bm(1,3,a)*DBm(1,2) + Bm(2,3,a)*DBm(2,2) +
+     2              Bm(3,3,a)*DBm(3,2) + Bm(4,3,a)*DBm(4,2) +
+     2              Bm(5,3,a)*DBm(5,2) + Bm(6,3,a)*DBm(6,2)
+            lK(8,a,b) = lK(2*dof+2,a,b) + w*afl*BmDBm
+
+            BmDBm = Bm(1,3,a)*DBm(1,3) + Bm(2,3,a)*DBm(2,3) +
+     2              Bm(3,3,a)*DBm(3,3) + Bm(4,3,a)*DBm(4,3) +
+     2              Bm(5,3,a)*DBm(5,3) + Bm(6,3,a)*DBm(6,3)
+            lK(9,a,b) = lK(2*dof+3,a,b) + w*(T1 + afl*BmDBm)
+      END DO
+      END DO
+
+      RETURN
+      END SUBROUTINE STRUCT3D_GR_ISO
+
+
+      SUBROUTINE STRUCT3D_GR_VOL(eNoN, nFn, w, N, Nx,
+     2 al, yl, dl, bfl, fN, pS0l, pSl, ya_l, lR, lK, grInt, lVWP, ifs)
+      USE COMMOD
+      USE ALLFUN
+      IMPLICIT NONE
+      INTEGER(KIND=IKIND), INTENT(IN) :: eNoN, nFn, ifs
+      REAL(KIND=RKIND), INTENT(IN) :: w, N(eNoN), Nx(3,eNoN), 
+     4   al(tDof,eNoN), yl(tDof,eNoN), dl(tDof,eNoN), bfl(3,eNoN),
+     5   fN(3,nFn), pS0l(6,eNoN), ya_l(eNoN), lVWP(nvwp,eNoN)
+      REAL(KIND=RKIND), INTENT(OUT) :: pSl(6)
+      REAL(KIND=RKIND), INTENT(INOUT) :: grInt(nGrInt), lR(dof,eNoN),
+     2   lK(dof*dof,eNoN,eNoN)
+      
       INTEGER(KIND=IKIND) :: a, b, i, j, k, ii, jj, dd
       REAL(KIND=RKIND) :: rho, dmp, T1, amd, afl, ya_g, fb(3), ud(3),
      2   NxSNx, BmDBm, F(3,3), S(3,3), P(3,3), Dm(6,6), DBm(6,3),
@@ -198,82 +397,87 @@
       F(2,2) = 1._RKIND
       F(3,3) = 1._RKIND
       ya_g   = 0._RKIND
+
+!     G&R parameters
       eVWP   = 0._RKIND
       p_equi = 0._RKIND
+      stim   = 0._RKIND
 
       DO a=1, eNoN
-         F(1,1) = F(1,1) + Nxd(1,a)*dl(i,a)
-         F(1,2) = F(1,2) + Nxd(2,a)*dl(i,a)
-         F(1,3) = F(1,3) + Nxd(3,a)*dl(i,a)
-         F(2,1) = F(2,1) + Nxd(1,a)*dl(j,a)
-         F(2,2) = F(2,2) + Nxd(2,a)*dl(j,a)
-         F(2,3) = F(2,3) + Nxd(3,a)*dl(j,a)
-         F(3,1) = F(3,1) + Nxd(1,a)*dl(k,a)
-         F(3,2) = F(3,2) + Nxd(2,a)*dl(k,a)
-         F(3,3) = F(3,3) + Nxd(3,a)*dl(k,a)
+            F(1,1) = F(1,1) + Nx(1,a)*dl(i,a)
+            F(1,2) = F(1,2) + Nx(2,a)*dl(i,a)
+            F(1,3) = F(1,3) + Nx(3,a)*dl(i,a)
+            F(2,1) = F(2,1) + Nx(1,a)*dl(j,a)
+            F(2,2) = F(2,2) + Nx(2,a)*dl(j,a)
+            F(2,3) = F(2,3) + Nx(3,a)*dl(j,a)
+            F(3,1) = F(3,1) + Nx(1,a)*dl(k,a)
+            F(3,2) = F(3,2) + Nx(2,a)*dl(k,a)
+            F(3,3) = F(3,3) + Nx(3,a)*dl(k,a)
 
 !        Calculate local wall property
-         IF (useVarWall) eVWP(:) = eVWP(:) + Nd(a)*lVWP(:,a)
+            IF (useVarWall) eVWP(:) = eVWP(:) + N(a)*lVWP(:,a)
 
 !        interpolate lagrange multiplier
-         p_equi = p_equi + Np(a) * dl(4,a)
+            p_equi = p_equi + N(a) * dl(4,a)
       END DO
+      ! WRITE(*,*) p_equi
 
 !     2nd Piola-Kirchhoff tensor (S) and material stiffness tensor in
 !     Voigt notationa (Dm)
       CALL GETPK2CC(eq(cEq)%dmn(cDmn), F, nFn, fN, ya_g, grInt, S, Dm,
-     2              eVWP, ifs, p_equi, stim)
+     2              eVWP, 1, p_equi, stim)
+      ! WRITE(*,*) stim
 
 !     1st Piola-Kirchhoff tensor (P)
       P    = MATMUL(F, S)
 
       DO a=1, eNoN
-         Bm(1,1,a) = Nxd(1,a)*F(1,1)
-         Bm(1,2,a) = Nxd(1,a)*F(2,1)
-         Bm(1,3,a) = Nxd(1,a)*F(3,1)
+            Bm(1,1,a) = Nx(1,a)*F(1,1)
+            Bm(1,2,a) = Nx(1,a)*F(2,1)
+            Bm(1,3,a) = Nx(1,a)*F(3,1)
 
-         Bm(2,1,a) = Nxd(2,a)*F(1,2)
-         Bm(2,2,a) = Nxd(2,a)*F(2,2)
-         Bm(2,3,a) = Nxd(2,a)*F(3,2)
+            Bm(2,1,a) = Nx(2,a)*F(1,2)
+            Bm(2,2,a) = Nx(2,a)*F(2,2)
+            Bm(2,3,a) = Nx(2,a)*F(3,2)
 
-         Bm(3,1,a) = Nxd(3,a)*F(1,3)
-         Bm(3,2,a) = Nxd(3,a)*F(2,3)
-         Bm(3,3,a) = Nxd(3,a)*F(3,3)
+            Bm(3,1,a) = Nx(3,a)*F(1,3)
+            Bm(3,2,a) = Nx(3,a)*F(2,3)
+            Bm(3,3,a) = Nx(3,a)*F(3,3)
 
-         Bm(4,1,a) = (Nxd(1,a)*F(1,2) + F(1,1)*Nxd(2,a))
-         Bm(4,2,a) = (Nxd(1,a)*F(2,2) + F(2,1)*Nxd(2,a))
-         Bm(4,3,a) = (Nxd(1,a)*F(3,2) + F(3,1)*Nxd(2,a))
+            Bm(4,1,a) = (Nx(1,a)*F(1,2) + F(1,1)*Nx(2,a))
+            Bm(4,2,a) = (Nx(1,a)*F(2,2) + F(2,1)*Nx(2,a))
+            Bm(4,3,a) = (Nx(1,a)*F(3,2) + F(3,1)*Nx(2,a))
 
-         Bm(5,1,a) = (Nxd(2,a)*F(1,3) + F(1,2)*Nxd(3,a))
-         Bm(5,2,a) = (Nxd(2,a)*F(2,3) + F(2,2)*Nxd(3,a))
-         Bm(5,3,a) = (Nxd(2,a)*F(3,3) + F(3,2)*Nxd(3,a))
+            Bm(5,1,a) = (Nx(2,a)*F(1,3) + F(1,2)*Nx(3,a))
+            Bm(5,2,a) = (Nx(2,a)*F(2,3) + F(2,2)*Nx(3,a))
+            Bm(5,3,a) = (Nx(2,a)*F(3,3) + F(3,2)*Nx(3,a))
 
-         Bm(6,1,a) = (Nxd(3,a)*F(1,1) + F(1,3)*Nxd(1,a))
-         Bm(6,2,a) = (Nxd(3,a)*F(2,1) + F(2,3)*Nxd(1,a))
-         Bm(6,3,a) = (Nxd(3,a)*F(3,1) + F(3,3)*Nxd(1,a))
+            Bm(6,1,a) = (Nx(3,a)*F(1,1) + F(1,3)*Nx(1,a))
+            Bm(6,2,a) = (Nx(3,a)*F(2,1) + F(2,3)*Nx(1,a))
+            Bm(6,3,a) = (Nx(3,a)*F(3,1) + F(3,3)*Nx(1,a))
       END DO
 
 !     Local residue and tangent matrices
       DO a=1, eNoN
-         lR(1,a) = lR(1,a) + wd*(Nd(a)*ud(1) + Nxd(1,a)*P(1,1) +
-     2      Nxd(2,a)*P(1,2) + Nxd(3,a)*P(1,3))
-         lR(2,a) = lR(2,a) + wd*(Nd(a)*ud(2) + Nxd(1,a)*P(2,1) +
-     2      Nxd(2,a)*P(2,2) + Nxd(3,a)*P(2,3))
-         lR(3,a) = lR(3,a) + wd*(Nd(a)*ud(3) + Nxd(1,a)*P(3,1) +
-     2      Nxd(2,a)*P(3,2) + Nxd(3,a)*P(3,3))
+            lR(1,a) = lR(1,a) + w*(N(a)*ud(1) + Nx(1,a)*P(1,1) +
+     2      Nx(2,a)*P(1,2) + Nx(3,a)*P(1,3))
+            lR(2,a) = lR(2,a) + w*(N(a)*ud(2) + Nx(1,a)*P(2,1) +
+     2      Nx(2,a)*P(2,2) + Nx(3,a)*P(2,3))
+            lR(3,a) = lR(3,a) + w*(N(a)*ud(3) + Nx(1,a)*P(3,1) +
+     2      Nx(2,a)*P(3,2) + Nx(3,a)*P(3,3))
 
-         DO b=1, eNoN
+            DO b=1, eNoN
 !           Geometric stiffness
-            NxSNx = Nxd(1,a)*S(1,1)*Nxd(1,b) + 
-     2              Nxd(2,a)*S(2,1)*Nxd(1,b) +
-     3              Nxd(3,a)*S(3,1)*Nxd(1,b) + 
-     4              Nxd(1,a)*S(1,2)*Nxd(2,b) +
-     5              Nxd(2,a)*S(2,2)*Nxd(2,b) + 
-     6              Nxd(3,a)*S(3,2)*Nxd(2,b) +
-     7              Nxd(1,a)*S(1,3)*Nxd(3,b) + 
-     8              Nxd(2,a)*S(2,3)*Nxd(3,b) +
-     9              Nxd(3,a)*S(3,3)*Nxd(3,b)
-            T1 = amd*Nd(a)*Nd(b) + afl*NxSNx
+            NxSNx = Nx(1,a)*S(1,1)*Nx(1,b) + 
+     2              Nx(2,a)*S(2,1)*Nx(1,b) +
+     3              Nx(3,a)*S(3,1)*Nx(1,b) + 
+     4              Nx(1,a)*S(1,2)*Nx(2,b) +
+     5              Nx(2,a)*S(2,2)*Nx(2,b) + 
+     6              Nx(3,a)*S(3,2)*Nx(2,b) +
+     7              Nx(1,a)*S(1,3)*Nx(3,b) + 
+     8              Nx(2,a)*S(2,3)*Nx(3,b) +
+     9              Nx(3,a)*S(3,3)*Nx(3,b)
+            T1 = amd*N(a)*N(b) + afl*NxSNx
 
 !           Material Stiffness (Bt*D*B)
             DBm = MATMUL(Dm, Bm(:,:,b))
@@ -281,56 +485,54 @@
             BmDBm = Bm(1,1,a)*DBm(1,1) + Bm(2,1,a)*DBm(2,1) +
      2              Bm(3,1,a)*DBm(3,1) + Bm(4,1,a)*DBm(4,1) +
      2              Bm(5,1,a)*DBm(5,1) + Bm(6,1,a)*DBm(6,1)
-            lK(1,a,b) = lK(1,a,b) + wd*(T1 + afl*BmDBm)
+            lK(1,a,b) = lK(1,a,b) + w*(T1 + afl*BmDBm)
 
             BmDBm = Bm(1,1,a)*DBm(1,2) + Bm(2,1,a)*DBm(2,2) +
      2              Bm(3,1,a)*DBm(3,2) + Bm(4,1,a)*DBm(4,2) +
      2              Bm(5,1,a)*DBm(5,2) + Bm(6,1,a)*DBm(6,2)
-            lK(2,a,b) = lK(2,a,b) + wd*afl*BmDBm
+            lK(2,a,b) = lK(2,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,1,a)*DBm(1,3) + Bm(2,1,a)*DBm(2,3) +
      2              Bm(3,1,a)*DBm(3,3) + Bm(4,1,a)*DBm(4,3) +
      2              Bm(5,1,a)*DBm(5,3) + Bm(6,1,a)*DBm(6,3)
-            lK(3,a,b) = lK(3,a,b) + wd*afl*BmDBm
+            lK(3,a,b) = lK(3,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,2,a)*DBm(1,1) + Bm(2,2,a)*DBm(2,1) +
      2              Bm(3,2,a)*DBm(3,1) + Bm(4,2,a)*DBm(4,1) +
      2              Bm(5,2,a)*DBm(5,1) + Bm(6,2,a)*DBm(6,1)
-            lK(4,a,b) = lK(dof+1,a,b) + wd*afl*BmDBm
+            lK(4,a,b) = lK(dof+1,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,2,a)*DBm(1,2) + Bm(2,2,a)*DBm(2,2) +
      2              Bm(3,2,a)*DBm(3,2) + Bm(4,2,a)*DBm(4,2) +
      2              Bm(5,2,a)*DBm(5,2) + Bm(6,2,a)*DBm(6,2)
-            lK(5,a,b) = lK(dof+2,a,b) + wd*(T1 + afl*BmDBm)
+            lK(5,a,b) = lK(dof+2,a,b) + w*(T1 + afl*BmDBm)
 
             BmDBm = Bm(1,2,a)*DBm(1,3) + Bm(2,2,a)*DBm(2,3) +
      2              Bm(3,2,a)*DBm(3,3) + Bm(4,2,a)*DBm(4,3) +
      2              Bm(5,2,a)*DBm(5,3) + Bm(6,2,a)*DBm(6,3)
-            lK(6,a,b) = lK(dof+3,a,b) + wd*afl*BmDBm
+            lK(6,a,b) = lK(dof+3,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,3,a)*DBm(1,1) + Bm(2,3,a)*DBm(2,1) +
      2              Bm(3,3,a)*DBm(3,1) + Bm(4,3,a)*DBm(4,1) +
      2              Bm(5,3,a)*DBm(5,1) + Bm(6,3,a)*DBm(6,1)
-            lK(7,a,b) = lK(2*dof+1,a,b) + wd*afl*BmDBm
+            lK(7,a,b) = lK(2*dof+1,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,3,a)*DBm(1,2) + Bm(2,3,a)*DBm(2,2) +
      2              Bm(3,3,a)*DBm(3,2) + Bm(4,3,a)*DBm(4,2) +
      2              Bm(5,3,a)*DBm(5,2) + Bm(6,3,a)*DBm(6,2)
-            lK(8,a,b) = lK(2*dof+2,a,b) + wd*afl*BmDBm
+            lK(8,a,b) = lK(2*dof+2,a,b) + w*afl*BmDBm
 
             BmDBm = Bm(1,3,a)*DBm(1,3) + Bm(2,3,a)*DBm(2,3) +
      2              Bm(3,3,a)*DBm(3,3) + Bm(4,3,a)*DBm(4,3) +
      2              Bm(5,3,a)*DBm(5,3) + Bm(6,3,a)*DBm(6,3)
-            lK(9,a,b) = lK(2*dof+3,a,b) + wd*(T1 + afl*BmDBm)
-         END DO
+            lK(9,a,b) = lK(2*dof+3,a,b) + w*(T1 + afl*BmDBm)
+            END DO
       END DO
 
-      IF (eq(cEq)%dmn(cDmn)%phys .EQ. phys_gr) THEN
-!        residual
-         DO a=1, eNoN
-            lR(4,a) = lR(4,a) + wp * Np(a) * (p_equi - stim)
-         END DO
-      END IF
+!     residual
+      DO a=1, eNoN
+            lR(4,a) = lR(4,a) + N(a) * stim
+      END DO
 
       RETURN
-      END SUBROUTINE STRUCT3D_GR
+      END SUBROUTINE STRUCT3D_GR_VOL

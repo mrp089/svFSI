@@ -88,8 +88,8 @@
          END IF
 #endif
       END DO ! e: loop
-      ! WRITE(*,*) lK
-      ! CALL EXIT(0)
+      WRITE(*,*) lK
+      CALL EXIT(0)
 
       DEALLOCATE(ptr, xl, al, yl, dl, bfl, fN, pS0l, pSl, ya_l, N, Nx,
      2   lR, lK, lVWP)
