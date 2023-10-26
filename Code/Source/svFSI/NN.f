@@ -82,7 +82,7 @@
             lM%lShpF   = .FALSE.
          CASE(20)
             lM%eType   = eType_HEX20
-            lM%nG      = 27
+            lM%nG      = 8
             lM%vtkType = 25
             lM%nEf     = 6
             lM%lShpF   = .FALSE.
@@ -320,44 +320,56 @@
          xi(1,8) = t; xi(2,8) = s; xi(3,8) = s
 
       CASE(eType_HEX20)
-         w(1 : 8) = 125._RKIND/729._RKIND
-         w(9 :20) = 200._RKIND/729._RKIND
-         w(21:26) = 320._RKIND/729._RKIND
-         w(27)    = 512._RKIND/729._RKIND
+         w =  1._RKIND
+         s =  1._RKIND/SQRT(3._RKIND)
+         t = -1._RKIND/SQRT(3._RKIND)
+         xi(1,1) = t; xi(2,1) = t; xi(3,1) = t
+         xi(1,2) = s; xi(2,2) = t; xi(3,2) = t
+         xi(1,3) = s; xi(2,3) = s; xi(3,3) = t
+         xi(1,4) = t; xi(2,4) = s; xi(3,4) = t
+         xi(1,5) = t; xi(2,5) = t; xi(3,5) = s
+         xi(1,6) = s; xi(2,6) = t; xi(3,6) = s
+         xi(1,7) = s; xi(2,7) = s; xi(3,7) = s
+         xi(1,8) = t; xi(2,8) = s; xi(3,8) = s
 
-         s = SQRT(0.6_RKIND)
-         t = 0._RKIND
+         ! w(1 : 8) = 125._RKIND/729._RKIND
+         ! w(9 :20) = 200._RKIND/729._RKIND
+         ! w(21:26) = 320._RKIND/729._RKIND
+         ! w(27)    = 512._RKIND/729._RKIND
 
-         xi(1, 1) = -s; xi(2, 1) = -s; xi(3, 1) = -s
-         xi(1, 2) =  s; xi(2, 2) = -s; xi(3, 2) = -s
-         xi(1, 3) =  s; xi(2, 3) =  s; xi(3, 3) = -s
-         xi(1, 4) = -s; xi(2, 4) =  s; xi(3, 4) = -s
-         xi(1, 5) = -s; xi(2, 5) = -s; xi(3, 5) =  s
-         xi(1, 6) =  s; xi(2, 6) = -s; xi(3, 6) =  s
-         xi(1, 7) =  s; xi(2, 7) =  s; xi(3, 7) =  s
-         xi(1, 8) = -s; xi(2, 8) =  s; xi(3, 8) =  s
+         ! s = SQRT(0.6_RKIND)
+         ! t = 0._RKIND
 
-         xi(1, 9) =  t; xi(2, 9) = -s; xi(3, 9) = -s
-         xi(1,10) =  s; xi(2,10) =  t; xi(3,10) = -s
-         xi(1,11) =  t; xi(2,11) =  s; xi(3,11) = -s
-         xi(1,12) = -s; xi(2,12) =  t; xi(3,12) = -s
-         xi(1,13) =  t; xi(2,13) = -s; xi(3,13) =  s
-         xi(1,14) =  s; xi(2,14) =  t; xi(3,14) =  s
-         xi(1,15) =  t; xi(2,15) =  s; xi(3,15) =  s
-         xi(1,16) = -s; xi(2,16) =  t; xi(3,16) =  s
-         xi(1,17) = -s; xi(2,17) = -s; xi(3,17) =  t
-         xi(1,18) =  s; xi(2,18) = -s; xi(3,18) =  t
-         xi(1,19) =  s; xi(2,19) =  s; xi(3,19) =  t
-         xi(1,20) = -s; xi(2,20) =  s; xi(3,20) =  t
+         ! xi(1, 1) = -s; xi(2, 1) = -s; xi(3, 1) = -s
+         ! xi(1, 2) =  s; xi(2, 2) = -s; xi(3, 2) = -s
+         ! xi(1, 3) =  s; xi(2, 3) =  s; xi(3, 3) = -s
+         ! xi(1, 4) = -s; xi(2, 4) =  s; xi(3, 4) = -s
+         ! xi(1, 5) = -s; xi(2, 5) = -s; xi(3, 5) =  s
+         ! xi(1, 6) =  s; xi(2, 6) = -s; xi(3, 6) =  s
+         ! xi(1, 7) =  s; xi(2, 7) =  s; xi(3, 7) =  s
+         ! xi(1, 8) = -s; xi(2, 8) =  s; xi(3, 8) =  s
 
-         xi(1,21) = -s; xi(2,21) =  t; xi(3,21) =  t
-         xi(1,22) =  s; xi(2,22) =  t; xi(3,22) =  t
-         xi(1,23) =  t; xi(2,23) = -s; xi(3,23) =  t
-         xi(1,24) =  t; xi(2,24) =  s; xi(3,24) =  t
-         xi(1,25) =  t; xi(2,25) =  t; xi(3,25) = -s
-         xi(1,26) =  t; xi(2,26) =  t; xi(3,26) =  s
+         ! xi(1, 9) =  t; xi(2, 9) = -s; xi(3, 9) = -s
+         ! xi(1,10) =  s; xi(2,10) =  t; xi(3,10) = -s
+         ! xi(1,11) =  t; xi(2,11) =  s; xi(3,11) = -s
+         ! xi(1,12) = -s; xi(2,12) =  t; xi(3,12) = -s
+         ! xi(1,13) =  t; xi(2,13) = -s; xi(3,13) =  s
+         ! xi(1,14) =  s; xi(2,14) =  t; xi(3,14) =  s
+         ! xi(1,15) =  t; xi(2,15) =  s; xi(3,15) =  s
+         ! xi(1,16) = -s; xi(2,16) =  t; xi(3,16) =  s
+         ! xi(1,17) = -s; xi(2,17) = -s; xi(3,17) =  t
+         ! xi(1,18) =  s; xi(2,18) = -s; xi(3,18) =  t
+         ! xi(1,19) =  s; xi(2,19) =  s; xi(3,19) =  t
+         ! xi(1,20) = -s; xi(2,20) =  s; xi(3,20) =  t
 
-         xi(1,27) =  t; xi(2,27) =  t; xi(3,27) =  t
+         ! xi(1,21) = -s; xi(2,21) =  t; xi(3,21) =  t
+         ! xi(1,22) =  s; xi(2,22) =  t; xi(3,22) =  t
+         ! xi(1,23) =  t; xi(2,23) = -s; xi(3,23) =  t
+         ! xi(1,24) =  t; xi(2,24) =  s; xi(3,24) =  t
+         ! xi(1,25) =  t; xi(2,25) =  t; xi(3,25) = -s
+         ! xi(1,26) =  t; xi(2,26) =  t; xi(3,26) =  s
+
+         ! xi(1,27) =  t; xi(2,27) =  t; xi(3,27) =  t
 
       CASE(eType_HEX27)
          w(1 : 8) = 125._RKIND/729._RKIND
@@ -1422,7 +1434,7 @@ c        N(8) = lx*my*0.5_RKIND
          Nb(2,5:10) =  4._RKIND
 
       CASE(eType_HEX20)
-         Nb(1,1:20) = -0.125_RKIND
+         Nb(1,1:20) = -0.25_RKIND
 
       CASE(eType_HEX27)
          Nb(1,1:20) = -0.125_RKIND
