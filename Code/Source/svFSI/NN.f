@@ -76,7 +76,7 @@
             lM%lShpF   = .FALSE.
          CASE(8)
             lM%eType   = eType_HEX8
-            lM%nG      = 8
+            lM%nG      = 1
             lM%vtkType = 12
             lM%nEf     = 6
             lM%lShpF   = .FALSE.
@@ -307,17 +307,20 @@
          xi(1,15) = t; xi(2,15) = s; xi(3,15) = s
 
       CASE(eType_HEX8)
-         w =  1._RKIND
-         s =  1._RKIND/SQRT(3._RKIND)
-         t = -1._RKIND/SQRT(3._RKIND)
+         ! w =  1._RKIND
+         ! s =  1._RKIND/SQRT(3._RKIND)
+         ! t = -1._RKIND/SQRT(3._RKIND)
+         ! xi(1,1) = t; xi(2,1) = t; xi(3,1) = t
+         ! xi(1,2) = s; xi(2,2) = t; xi(3,2) = t
+         ! xi(1,3) = s; xi(2,3) = s; xi(3,3) = t
+         ! xi(1,4) = t; xi(2,4) = s; xi(3,4) = t
+         ! xi(1,5) = t; xi(2,5) = t; xi(3,5) = s
+         ! xi(1,6) = s; xi(2,6) = t; xi(3,6) = s
+         ! xi(1,7) = s; xi(2,7) = s; xi(3,7) = s
+         ! xi(1,8) = t; xi(2,8) = s; xi(3,8) = s
+         w = 8._RKIND
+         t = 0._RKIND
          xi(1,1) = t; xi(2,1) = t; xi(3,1) = t
-         xi(1,2) = s; xi(2,2) = t; xi(3,2) = t
-         xi(1,3) = s; xi(2,3) = s; xi(3,3) = t
-         xi(1,4) = t; xi(2,4) = s; xi(3,4) = t
-         xi(1,5) = t; xi(2,5) = t; xi(3,5) = s
-         xi(1,6) = s; xi(2,6) = t; xi(3,6) = s
-         xi(1,7) = s; xi(2,7) = s; xi(3,7) = s
-         xi(1,8) = t; xi(2,8) = s; xi(3,8) = s
 
       CASE(eType_HEX20)
          w(1 : 8) = 125._RKIND/729._RKIND
